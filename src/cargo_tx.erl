@@ -15,7 +15,13 @@
 %%   limitations under the License.
 %%
 %% @description
-%%   client transaction worker
+%%   module implements client transaction as unit-of-work w/o any rollback 
+%%   feature. It executes a functional object within single i/o context.
+%%   The functional object consists of a series of synchronous bucket i/o 
+%%   functions. The object execution is aborted if something goes wrong 
+%%   such as network error, storage failure, etc. The transaction returns
+%%   either {ok, any()} | {error, any()}. 
+%%
 -module(cargo_tx).
 -behaviour(kfsm).
 
@@ -64,7 +70,7 @@ handle(Fun, Tx, S) ->
 	% @todo configurable protocol
 	IO = cargo_io:init(cargo_io_hs),
 	try
-		plib:ack(Tx, Fun(IO)),
+		plib:ack(Tx, {ok, Fun(IO)}),
 		{next_state, idle, S}
 	catch _Error:Reason ->
 		plib:ack(Tx, {error, Reason}),
