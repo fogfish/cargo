@@ -16,8 +16,13 @@
 %%
 
 %% enable debug output
--define(CONFIG_DEBUG, true).
+-define(CONFIG_DEBUG,   true).
 
+%% default i/o protocol
+-define(CONFIG_IO_PROT, cargo_io_hs).
+
+
+%%
 %% dirty i/o socket
 -record(iosock, {
 	mod = undefined :: atom(),  % i/o protocol functor 

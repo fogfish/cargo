@@ -62,7 +62,7 @@ peers() ->
 
 %%
 %% execute dirty operation over i/o socket, current process is blocked 
--spec(do/2 :: (any(), any()) -> {ok, any()}).
+-spec(do/2 :: (any(), any()) -> {ok, any()} | {error, any()}).
 
 do(Sock, Req) ->
 	cargo_io:do(Sock, Req).

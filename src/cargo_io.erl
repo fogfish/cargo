@@ -46,6 +46,7 @@ free(#iosock{}=S) ->
 
 %%
 %% execute atomic operation
+%% @todo: timeout handling for request
 -spec(do/2 :: (#iosock{}, any()) -> any()).
 
 do(#iosock{mod=Mod}=S, Req) ->

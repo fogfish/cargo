@@ -19,6 +19,8 @@
 -module(cargo_peer_sup).
 -behaviour(supervisor).
 
+-include("cargo.hrl").
+
 -export([
    start_link/2, 
    init/1
@@ -32,7 +34,7 @@
 %%
 -define(QUEUE(Port, Opts),  [[
 	{type,     reusable}
-  ,{worker,   {cargo_io_hs, [opts:val(host, Opts), Port]}}
+  ,{worker,   {?CONFIG_IO_PROT, [opts:val(host, Opts), Port]}}
   ,{capacity, opts:val(pool, Opts)}
 ]]).
 

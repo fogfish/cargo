@@ -25,6 +25,8 @@
 -module(cargo_tx).
 -behaviour(kfsm).
 
+-include("cargo.hrl").
+
 -export([
 	start_link/0,
 	init/1,
@@ -68,7 +70,7 @@ ioctl(_, _) ->
 
 handle(Fun, Tx, S) ->
 	% @todo configurable protocol
-	IO = cargo_io:init(cargo_io_hs),
+	IO = cargo_io:init(?CONFIG_IO_PROT),
 	try
 		plib:ack(Tx, {ok, Fun(IO)}),
 		{next_state, idle, S}
