@@ -1,0 +1,20 @@
+{application, cargo,
+   [
+      {description, "cargo - persistent term storage"},
+      {vsn,         "0.0.0"},
+      {modules,     [
+         cargo,
+         cargo_sup,
+         cargo_app
+      ]},
+      {registered,  []},
+      {applications,[
+         kernel,
+         stdlib,
+         lager
+      ]},
+      {mod, {cargo_app, []}},
+      {env, []}
+   ]
+}.  
+
