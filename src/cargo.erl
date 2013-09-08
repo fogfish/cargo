@@ -19,6 +19,15 @@
 -module(cargo).
 
 -export([start/0, start/1]).
+-export([
+	join/2,
+	leave/1,
+	peers/0,
+
+	do/2,
+
+	t/0
+]).
 
 %%
 %% start application
@@ -27,3 +36,47 @@ start()    ->
 
 start(Cfg) -> 
 	applib:boot(?MODULE, Cfg).
+
+%%
+%% join storage peer
+-spec(join/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
+
+join(Peer, Opts) ->
+	cargo_sup:join(Peer, Opts).
+
+%%
+%% leave storage peer
+-spec(leave/1 :: (atom()) -> ok).
+
+leave(Peer) ->
+	cargo_sup:leave(Peer).
+
+%%
+%% list of peers
+-spec(peers/0 :: () -> [atom()]).
+
+peers() ->
+	cargo_sup:peers().
+
+
+
+%%
+%% execute dirty operation over i/o socket, current process is blocked 
+-spec(do/2 :: (any(), any()) -> {ok, any()}).
+
+do(Sock, Req) ->
+	cargo_io:do(Sock, Req).
+
+
+
+t() ->
+	{ok, Pid} = cargo_tx:start_link(),
+	plib:call(Pid, fun tx/1).
+
+
+tx(IO) ->
+	R = cargo:do(IO, req),
+	io:format("--> ~p~n", [R]),
+	cargo:do(IO, req1).
+
+

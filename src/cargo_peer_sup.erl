@@ -15,17 +15,13 @@
 %%   limitations under the License.
 %%
 %% @description
-%%   application root supervisor
--module(cargo_sup).
+%%   storage peer i/o supervisor
+-module(cargo_peer_sup).
 -behaviour(supervisor).
 
 -export([
-   start_link/0, 
-   init/1,
-   % peer api
-   join/2,
-   leave/1,
-   peers/0
+   start_link/2, 
+   init/1
 ]).
 
 %%
@@ -34,31 +30,32 @@
 -define(CHILD(Type, ID, I, Args),  {ID, {I, start_link, Args}, permanent, 5000, Type, dynamic}).
 
 %%
+-define(QUEUE(Port, Opts),  [[
+	{type,     reusable}
+  ,{worker,   {cargo_io_hs, [opts:val(host, Opts), Port]}}
+  ,{capacity, opts:val(pool, Opts)}
+]]).
+
 %%
-start_link() ->
-   supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+%%
+start_link(Peer, Opts) ->
+   supervisor:start_link({local, Peer}, ?MODULE, [Opts]).
    
-init([]) ->   
+init([Opts]) ->   
    {ok,
       {
          {one_for_one, 2, 1800},
-         []
+         [
+         	% reader i/o pool
+         	?CHILD(supervisor, reader, pq, ?QUEUE(opts:val(reader, Opts), Opts))
+
+         	% writer i/o pool
+           ,?CHILD(supervisor, writer, pq, ?QUEUE(opts:val(writer, Opts), Opts))
+         ]
       }
    }.
 
 %%
 %%
-join(Peer, Opts) ->
-	supervisor:start_child(?MODULE, ?CHILD(supervisor, Peer, cargo_peer_sup, [Peer, Opts])).
 
-%%
-%%
-leave(Peer) ->
-	supervisor:terminate_child(?MODULE, Peer),
-	supervisor:delete_child(?MODULE, Peer).
-
-%%
-%%
-peers() ->
-	[erlang:element(1, X) || X <- supervisor:which_children(?MODULE)].
 
