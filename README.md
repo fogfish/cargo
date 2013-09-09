@@ -4,15 +4,25 @@
 ## Supervisor tree
 
 Application root supervisor manages i/o pools to storage peer.
-Individual buckets managed by applications.
 
 ```
  + cargo_sup : root supervisor
    |
    +-- cargo_peer_sup : connected storage peers
    |   |
-  ...  +-- pq (i/o reader)
-       |
-       +-- pq (i/o writer)
+   |   +-- pq (cargo_io_xxx) : i/o reader protocol pool
+   |   |
+   |   +-- pq (cargo_io_xxx) : i/o writer protocol pool 
+  ...
+```
+
+Cargo casks are managed by owner application.
 
 ```
+ + cargo_cask_sup
+   |
+   +-- cargo_cask : cask meta-data container 
+   |
+   +-- pq (cargo_cast_tx) : cast transaction pool
+```
+

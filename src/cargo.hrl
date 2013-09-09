@@ -18,8 +18,8 @@
 %% enable debug output
 -define(CONFIG_DEBUG,   true).
 
-%% default i/o protocol
--define(CONFIG_IO_PROT, cargo_io_hs).
+%% default i/o protocol family
+-define(CONFIG_IO_FAMILY, cargo_io_hs).
 
 
 %%

@@ -39,6 +39,11 @@ start(Cfg) ->
 
 %%
 %% join storage peer
+%%  Options:
+%%    {host,  hostname()} - peer host name or ip address
+%%    {reader, integer()} - peer reader i/o port (read-only request)
+%%    {writer, integer()} - peer writer i/o port (mixed request)
+%%    {pool,   integer()} - capacity of i/o queues
 -spec(join/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
 join(Peer, Opts) ->
@@ -70,7 +75,7 @@ do(Sock, Req) ->
 
 
 t() ->
-	{ok, Pid} = cargo_tx:start_link(),
+	{ok, Pid} = cargo_cask_tx:start_link(),
 	plib:call(Pid, fun tx/1).
 
 

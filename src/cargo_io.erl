@@ -45,7 +45,11 @@ free(#iosock{}=S) ->
 
 
 %%
-%% execute atomic operation
+%% execute atomic operation, the function wraps 
+%% asynchronous i/o communication to sequence of
+%% synchronous primitives. Caller process is blocked
+%% until operation completed or timeout
+%% 
 %% @todo: timeout handling for request
 -spec(do/2 :: (#iosock{}, any()) -> any()).
 
@@ -79,8 +83,9 @@ do_response(#iosock{}=S, Tx, Timeout) ->
 		do_response(release(S), Tx, Timeout)
 	end.
 
-	
+
 handle_response(#iosock{}, Rsp) ->
+	% @todo parse response
 	Rsp.
 
 

@@ -34,7 +34,7 @@
 %%
 -define(QUEUE(Port, Opts),  [[
 	{type,     reusable}
-  ,{worker,   {?CONFIG_IO_PROT, [opts:val(host, Opts), Port]}}
+  ,{worker,   {?CONFIG_IO_FAMILY, [opts:val(peer, Opts), Port]}}
   ,{capacity, opts:val(pool, Opts)}
 ]]).
 
@@ -48,8 +48,8 @@ init([Opts]) ->
       {
          {one_for_one, 2, 1800},
          [
-         	% reader i/o pool
-         	?CHILD(supervisor, reader, pq, ?QUEUE(opts:val(reader, Opts), Opts))
+            % reader i/o pool
+            ?CHILD(supervisor, reader, pq, ?QUEUE(opts:val(reader, Opts), Opts))
 
          	% writer i/o pool
            ,?CHILD(supervisor, writer, pq, ?QUEUE(opts:val(writer, Opts), Opts))

@@ -22,7 +22,7 @@
 %%   such as network error, storage failure, etc. The transaction returns
 %%   either {ok, any()} | {error, any()}. 
 %%
--module(cargo_tx).
+-module(cargo_cask_tx).
 -behaviour(kfsm).
 
 -include("cargo.hrl").
@@ -70,7 +70,7 @@ ioctl(_, _) ->
 
 handle(Fun, Tx, S) ->
 	% @todo configurable protocol
-	IO = cargo_io:init(?CONFIG_IO_PROT),
+	IO = cargo_io:init(?CONFIG_IO_FAMILY),
 	try
 		plib:ack(Tx, {ok, Fun(IO)}),
 		{next_state, idle, S}
