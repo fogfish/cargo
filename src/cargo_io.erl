@@ -21,18 +21,19 @@
 -include("cargo.hrl").
 
 -export([
-	init/1,
+	init/2,
 	free/1,
 	do/2
 ]).
 
 %%
 %% create new dirty tx handler
--spec(init/1 :: (atom()) -> #iosock{}).
+-spec(init/2 :: (atom(), pid()) -> #iosock{}).
 
-init(Mod) ->
+init(Mod, Pool) ->
 	#iosock{
-		mod = Mod
+		mod  = Mod,
+		pool = Pool
 	}.
 
 %%
@@ -94,9 +95,9 @@ handle_response(#iosock{}, Rsp) ->
 %% lease i/o socket
 -spec(lease/1 :: (#iosock{}) -> #iosock{}).
 
-lease(#iosock{pid=undefined, mod=Mod}=S) ->
-	% @todo: deq from node i/o pool
-	{ok, Pid} = Mod:start_link(),
+lease(#iosock{pid=undefined}=S) ->
+	% @todo: deq from node i/o pool + timeout
+	{ok, Pid} = pq:lease(S#iosock.pool),
 	S#iosock{
 		pid = Pid
 	};
@@ -111,8 +112,9 @@ lease(#iosock{}=S) ->
 release(#iosock{pid=undefined}=S) ->
 	S;
 
-release(#iosock{pid=_Pid}=S) ->
+release(#iosock{pid=Pid}=S) ->
 	% @todo: enq used pid to node i/o pool
+	pq:release(S#iosock.pool, Pid),
 	S#iosock{
 		pid = undefined
 	}.

@@ -25,8 +25,9 @@
 %%
 %% dirty i/o socket
 -record(iosock, {
-	mod = undefined :: atom(),  % i/o protocol functor 
-	pid = undefined :: pid()    % i/o socket process
+	mod  = undefined :: atom(),  % i/o protocol functor 
+	pool = undefined :: pid(),   % i/o socket pool
+	pid  = undefined :: pid()    % i/o socket process
 }).
 
 

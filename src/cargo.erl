@@ -20,6 +20,12 @@
 
 -export([start/0, start/1]).
 -export([
+	start_link/1,
+	start_link/2,
+	cask/1,
+	% cask interface
+
+	% peer interface
 	join/2,
 	leave/1,
 	peers/0,
@@ -36,6 +42,49 @@ start()    ->
 
 start(Cfg) -> 
 	applib:boot(?MODULE, Cfg).
+
+%%%------------------------------------------------------------------
+%%%
+%%% cask interface
+%%%
+%%%------------------------------------------------------------------   
+
+%%
+%% start storage cask components, returns supervisor tree
+%%
+%%  Options:
+%%     {queue,   integer()}
+%%     {linger,  integer()}
+-spec(start_link/1 :: (list()) -> {ok, pid()} | {error, any()}).
+-spec(start_link/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
+
+start_link(Opts) ->
+   cargo_cask_sup:start_link(Opts).
+
+start_link(Name, Opts) ->
+   cargo_cask_sup:start_link(Name, Opts).
+
+%%
+%% start storage cask components, returns pid of cask process
+-spec(cask/1 :: (list()) -> {ok, pid()} | {error, any()}).
+
+cask(Opts)
+ when is_list(Opts) ->
+   case start_link(Opts) of
+      {ok, Pid} -> cargo_cask_sup:client_api(Pid);
+      Error     -> Error
+   end;
+
+cask(Pid)
+ when is_pid(Pid) ->
+   cargo_cask_sup:client_api(Pid).
+
+
+%%%------------------------------------------------------------------
+%%%
+%%% peer interface
+%%%
+%%%------------------------------------------------------------------   
 
 %%
 %% join storage peer
@@ -75,8 +124,10 @@ do(Sock, Req) ->
 
 
 t() ->
-	{ok, Pid} = cargo_cask_tx:start_link(),
-	plib:call(Pid, fun tx/1).
+   {ok,   _} = cargo:join(test, [{peer, mysqld}, {reader, 80}, {writer, 80}, {pool, 10}]),
+   {ok, Pid} = cargo:cask([{peer, test}]),
+   {ok,  Tx} = pq:lease(Pid),
+	plib:call(Tx, fun tx/1).
 
 
 tx(IO) ->

@@ -15,18 +15,17 @@
 %%   limitations under the License.
 %%
 %% @description
-%%   storage peer i/o supervisor
--module(cargo_peer_sup).
+%%   cask i/o supervisor
+-module(cargo_cask_sup).
 -behaviour(supervisor).
 
 -include("cargo.hrl").
 
 -export([
+   start_link/1,
    start_link/2, 
    init/1,
-
-   reader/1,
-   writer/1
+   client_api/1
 ]).
 
 %%
@@ -35,40 +34,36 @@
 -define(CHILD(Type, ID, I, Args),  {ID, {I, start_link, Args}, permanent, 5000, Type, dynamic}).
 
 %%
--define(QUEUE(Port, Opts),  [
-	{type,     reusable}
-  ,{worker,   {?CONFIG_IO_FAMILY, [opts:val(peer, Opts), Port]}}
-  ,{capacity, opts:val(pool, Opts)}
+-define(QUEUE(Opts),  [
+	{type,      reusable}
+  ,{worker,    {cargo_cask_tx, [opts:val(peer, Opts)]}}
+  ,{capacity,  opts:val(queue,  100, Opts)} 
+  ,{linger,    opts:val(linger, 100, Opts)}       
 ]).
 
 %%
-%%
-start_link(Peer, Opts) ->
-   supervisor:start_link({local, Peer}, ?MODULE, [Opts]).
+start_link(Opts) ->
+   supervisor:start_link(?MODULE, [undefined, Opts]).
+
+start_link(Name, Opts) ->
+   supervisor:start_link(?MODULE, [Name, Opts]).
    
-init([Opts]) ->   
+init([Name, Opts]) ->   
    {ok,
       {
          {one_for_one, 2, 1800},
          [
-            % reader i/o pool
-            ?CHILD(supervisor, reader, pq, [?QUEUE(opts:val(reader, Opts), Opts)])
-
-            % writer i/o pool
-           ,?CHILD(supervisor, writer, pq, [?QUEUE(opts:val(writer, Opts), Opts)])
+            % tx i/o pool
+            ?CHILD(supervisor, pq, [Name, ?QUEUE(Opts)])
          ]
       }
    }.
 
 %%
-%%
-reader(Sup) ->
-   {_, Pid, _, _} = lists:keyfind(reader, 1, supervisor:which_children(Sup)),
+%% return pid of client api
+client_api(Sup) ->
+   {_, Pid, _, _} = lists:keyfind(pq, 1, supervisor:which_children(Sup)),
    pq:queue(Pid).
 
-%%
-%%
-writer(Sup) ->
-   {_, Pid, _, _} = lists:keyfind(writer, 1, supervisor:which_children(Sup)),
-   pq:queue(Pid).
+
 

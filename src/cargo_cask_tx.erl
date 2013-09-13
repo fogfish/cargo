@@ -28,7 +28,7 @@
 -include("cargo.hrl").
 
 -export([
-	start_link/0,
+	start_link/1,
 	init/1,
 	free/2,
 	ioctl/2,
@@ -37,6 +37,8 @@
 
 %% internal state
 -record(fsm, {
+	rq = undefined :: pid(),  %% read-only queue
+	wq = undefined :: pid()   %% write-only queue
 }).
 
 
@@ -46,12 +48,16 @@
 %%%
 %%%------------------------------------------------------------------   
 
-start_link() ->
-	kfsm:start_link(?MODULE, [], []).
+start_link(Peer) ->
+	kfsm:start_link(?MODULE, [Peer], []).
 
-init([]) ->
+init([Peer]) ->
+	{ok, Reader} = cargo_peer_sup:reader(Peer),
+	{ok, Writer} = cargo_peer_sup:writer(Peer),
 	{ok, handle, 
 		#fsm{
+			rq = Reader,
+			wq = Writer
 		}
 	}.
 
@@ -70,11 +76,12 @@ ioctl(_, _) ->
 
 handle(Fun, Tx, S) ->
 	% @todo configurable protocol
-	IO = cargo_io:init(?CONFIG_IO_FAMILY),
+	IO = cargo_io:init(?CONFIG_IO_FAMILY, S#fsm.wq),
 	try
 		plib:ack(Tx, {ok, Fun(IO)}),
 		{next_state, idle, S}
 	catch _Error:Reason ->
+		io:format("--> ~p~n", [erlang:get_stacktrace()]),
 		plib:ack(Tx, {error, Reason}),
 		{next_state, idle, S}
 	after 
