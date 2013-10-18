@@ -18,7 +18,7 @@
 %%   module implements client transaction as unit-of-work w/o any rollback 
 %%   feature. It executes a functional object within single i/o context.
 %%   The functional object consists of a series of synchronous bucket i/o 
-%%   functions. The object execution is aborted if something goes wrong 
+%%   requests. The object execution is aborted if something goes wrong 
 %%   such as network error, storage failure, etc. The transaction returns
 %%   either {ok, any()} | {error, any()}. 
 %%

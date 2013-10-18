@@ -37,7 +37,7 @@
 %%
 -define(QUEUE(Port, Opts),  [
 	{type,     reusable}
-  ,{worker,   {?CONFIG_IO_FAMILY, [opts:val(peer, Opts), Port]}}
+  ,{worker,   {?CONFIG_IO_FAMILY, [opts:val(host, Opts), Port]}}
   ,{capacity, opts:val(pool, Opts)}
 ]).
 

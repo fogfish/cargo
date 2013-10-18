@@ -1,4 +1,9 @@
-# Storage interface adapter
+# CARGO - Storage interface adapter
+
+## Definitions
+
+* peer - storage peer is host capable to support storage i/o
+* cask - cask local reflection
 
 
 ## Supervisor tree

@@ -34,11 +34,11 @@
 -define(CHILD(Type, ID, I, Args),  {ID, {I, start_link, Args}, permanent, 5000, Type, dynamic}).
 
 %%
--define(QUEUE(Opts),  [
-	{type,      reusable}
-  ,{worker,    {cargo_cask_tx, [opts:val(peer, Opts)]}}
-  ,{capacity,  opts:val(queue,  100, Opts)} 
-  ,{linger,    opts:val(linger, 100, Opts)}       
+-define(QUEUE(X),  [
+   {type,      reusable}
+  ,{worker,    {cargo_cask_tx, [opts:val(peer, X)]}}
+  ,opts:get(capacity, 100, X) 
+  ,opts:get(linger,   100, X)       
 ]).
 
 %%

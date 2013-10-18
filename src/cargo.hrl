@@ -15,21 +15,26 @@
 %%   limitations under the License.
 %%
 
+%%%------------------------------------------------------------------
+%%%
+%%% build time config
+%%%
+%%%------------------------------------------------------------------   
+
 %% enable debug output
--define(CONFIG_DEBUG,   true).
+-define(CONFIG_DEBUG,     true).
 
 %% default i/o protocol family
 -define(CONFIG_IO_FAMILY, cargo_io_hs).
 
+%% default cask index
+-define(CONFIG_INDEX,     'PRIMARY').
 
-%%
-%% dirty i/o socket
--record(iosock, {
-	mod  = undefined :: atom(),  % i/o protocol functor 
-	pool = undefined :: pid(),   % i/o socket pool
-	pid  = undefined :: pid()    % i/o socket process
-}).
-
+%%%------------------------------------------------------------------
+%%%
+%%% macro
+%%%
+%%%------------------------------------------------------------------   
 
 %%
 %% logger macro
@@ -44,3 +49,33 @@
 		-define(DEBUG(Fmt, Args), ok).
 	-endif.
 -endif.
+
+%%%------------------------------------------------------------------
+%%%
+%%% records
+%%%
+%%%------------------------------------------------------------------   
+
+%%
+%% dirty (raw) i/o socket (used by tx object)
+-record(iosock, {
+	mod  = undefined :: atom(),  % i/o protocol functor 
+	pool = undefined :: pid(),   % i/o socket pool
+	pid  = undefined :: pid()    % i/o socket process (leased)
+}).
+
+%%
+%% cask definition
+-record(cask, {
+	id       = undefined  :: atom(),    % cask identity
+	peer     = undefined  :: atom(),    % peer assotiated with cask
+	struct   = undefined  :: atom(),    % struct identity
+	keylen   = 1          :: integer(), % length of key properties 
+	property = undefined  :: [atom()],  % list of properties
+	domain   = undefined  :: atom(),    % storage domain
+	bucket   = undefined  :: atom(),    % storage bucket
+	index    = undefined  :: atom(),    % storage index    
+	capacity = 100        :: integer(), % storage i/o capacity
+	linger   = 100        :: integer()  % storage i/o linger   
+}).
+

@@ -55,14 +55,14 @@ free(#iosock{}=S) ->
 -spec(do/2 :: (#iosock{}, any()) -> any()).
 
 do(#iosock{mod=Mod}=S, Req) ->
-	do_request(lease(S), Mod:prepare(Req)).
+	do_request(lease(S), Mod:serialize(Req)).
 
 do_request(#iosock{}=S, Req) ->
    % @todo configurable i/o spin timeout
 	do_response(S, plib:cast(S#iosock.pid, Req), 2).
 
 %% wait for response is two stage
-%% 1. wait for response and release socket after short time
+%% 1. wait for response and release socket after short time (spin timeout)
 %% 2. wait for response and abort transaction on timeout
 do_response(#iosock{pid=undefined}=S, Tx, Timeout) ->
 	receive

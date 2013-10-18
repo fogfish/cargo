@@ -26,7 +26,7 @@
 	ioctl/2,
 	io/3,
 
-	prepare/1
+	serialize/1
 ]).
 
 %% internal state
@@ -65,7 +65,15 @@ io(Msg, Tx, S) ->
 	{next_state, io, S}.
 
 
-
-prepare(Req) ->
+%%
+%% serialize client request to protocol format
+%%  * resolves physical bucket
+%%  * resolves physical bucket handle (32-bit number)
+%%  * splits tuple to key / val parts
+%%  * serializes request to write format 
+serialize(Req) ->
 	Req.
+
+% @TODO: serialize requests
+
 
