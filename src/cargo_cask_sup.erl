@@ -15,7 +15,7 @@
 %%   limitations under the License.
 %%
 %% @description
-%%   cask i/o supervisor
+%%   cask supervisor
 -module(cargo_cask_sup).
 -behaviour(supervisor).
 
@@ -23,7 +23,6 @@
 
 -export([
    start_link/1,
-   start_link/2, 
    init/1,
    client_api/1
 ]).
@@ -36,25 +35,22 @@
 %%
 -define(QUEUE(X),  [
    {type,      reusable}
-  ,{worker,    {cargo_cask_tx, [opts:val(peer, X)]}}
-  ,opts:get(capacity, 100, X) 
-  ,opts:get(linger,   100, X)       
+  ,{worker,    {cargo_cask_tx, [Cask]}}
+  ,{capacity,  X#cask.capacity}
+  ,{linger,    X#cask.linger}
 ]).
 
 %%
-start_link(Opts) ->
-   supervisor:start_link(?MODULE, [undefined, Opts]).
-
-start_link(Name, Opts) ->
-   supervisor:start_link(?MODULE, [Name, Opts]).
+start_link(Cask) ->
+   supervisor:start_link(?MODULE, [Cask]).
    
-init([Name, Opts]) ->   
+init([Cask]) ->   
    {ok,
       {
          {one_for_one, 2, 1800},
          [
             % tx i/o pool
-            ?CHILD(supervisor, pq, [Name, ?QUEUE(Opts)])
+            ?CHILD(supervisor, pq, [Cask#cask.id, ?QUEUE(Cask)])
          ]
       }
    }.

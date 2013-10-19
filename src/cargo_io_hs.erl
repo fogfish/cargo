@@ -26,7 +26,8 @@
 	ioctl/2,
 	io/3,
 
-	serialize/1
+	request/1,
+	response/1
 ]).
 
 %% internal state
@@ -71,9 +72,12 @@ io(Msg, Tx, S) ->
 %%  * resolves physical bucket handle (32-bit number)
 %%  * splits tuple to key / val parts
 %%  * serializes request to write format 
-serialize(Req) ->
+request(Req) ->
 	Req.
 
-% @TODO: serialize requests
+%%
+%% serializes storage response to client tuple
+response(Rsp) ->
+	Rsp.
 
 

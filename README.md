@@ -6,6 +6,12 @@
 * cask - cask local reflection
 
 
+1. Cask transaction pool is bound to particular bucket
+2. all default tx (bucket is not defined) executed by cask
+
+
+
+
 ## Supervisor tree
 
 Application root supervisor manages i/o pools to storage peer.

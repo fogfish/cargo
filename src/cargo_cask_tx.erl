@@ -35,12 +35,6 @@
 	handle/3
 ]).
 
-%% internal state
--record(fsm, {
-	rq = undefined :: pid(),  %% read-only queue
-	wq = undefined :: pid()   %% write-only queue
-}).
-
 
 %%%------------------------------------------------------------------
 %%%
@@ -48,18 +42,11 @@
 %%%
 %%%------------------------------------------------------------------   
 
-start_link(Peer) ->
-	kfsm:start_link(?MODULE, [Peer], []).
+start_link(Cask) ->
+	kfsm:start_link(?MODULE, [Cask], []).
 
-init([Peer]) ->
-	{ok, Reader} = cargo_peer_sup:reader(Peer),
-	{ok, Writer} = cargo_peer_sup:writer(Peer),
-	{ok, handle, 
-		#fsm{
-			rq = Reader,
-			wq = Writer
-		}
-	}.
+init([Cask]) ->
+	{ok, handle, Cask}.
 
 free(_, _) ->
 	ok.
@@ -74,16 +61,16 @@ ioctl(_, _) ->
 %%%
 %%%------------------------------------------------------------------   
 
-handle(Fun, Tx, S) ->
+handle(Fun, Tx, Cask) ->
 	% @todo configurable protocol
-	IO = cargo_io:init(?CONFIG_IO_FAMILY, S#fsm.wq),
+	IO = cargo_io:init(?CONFIG_IO_FAMILY, Cask),
 	try
 		plib:ack(Tx, {ok, Fun(IO)}),
-		{next_state, idle, S}
+		{next_state, idle, Cask}
 	catch _Error:Reason ->
 		io:format("--> ~p~n", [erlang:get_stacktrace()]),
 		plib:ack(Tx, {error, Reason}),
-		{next_state, idle, S}
+		{next_state, idle, Cask}
 	after 
 		cargo_io:free(IO)	
 	end.

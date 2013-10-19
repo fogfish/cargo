@@ -53,7 +53,6 @@ init([Opts]) ->
          [
             % reader i/o pool
             ?CHILD(supervisor, reader, pq, [?QUEUE(opts:val(reader, Opts), Opts)])
-
             % writer i/o pool
            ,?CHILD(supervisor, writer, pq, [?QUEUE(opts:val(writer, Opts), Opts)])
          ]

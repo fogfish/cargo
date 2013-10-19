@@ -33,6 +33,8 @@
 	peers/0,
 
 	do/2,
+   % create/2,
+   % create/3,
 
 	t/0
 ]).
@@ -56,24 +58,25 @@ start(Cfg) ->
 %%
 %%  Options:
 %%     {peer,        atom()} - peer name
+%%     {struct,    atom()} - struct identity
+%%     {keylen, integer()} - length of key   (default 1)
+%%     {property,[atom()]} - list of properties
+%%     {domain,    atom()} - storage domain   
+%%     {bucket,    atom()} - storage bucket  (default struct)
+%%     {index,     atom()} - storage index   (default 'PRIMARY')
 %%     {capacity, integer()} - pool capacity
 %%     {linger,   integer()} - pool linger
 -spec(start_link/1 :: (list()) -> {ok, pid()} | {error, any()}).
 -spec(start_link/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
 start_link(Opts) ->
-   cargo_cask_sup:start_link(Opts).
+   cargo_cask_sup:start_link(assert_cask(define_cask(Opts))).
 
 start_link(Name, Opts) ->
-   cargo_cask_sup:start_link(Name, Opts).
+   cargo_cask_sup:start_link(assert_cask(define_cask([{id, Name}|Opts]))).
 
 %%
 %% start storage cask components, returns pid of cask process
-%%
-%%  Options:
-%%     {peer,        atom()} - peer name
-%%     {capacity, integer()} -
-%%     {linger,   integer()} -
 -spec(cask/1 :: (list()) -> {ok, pid()} | {error, any()}).
 
 cask(Opts)
@@ -127,11 +130,22 @@ peers() ->
 %%%------------------------------------------------------------------   
 
 %%
-%% execute dirty operation over i/o socket, current process is blocked 
+%% execute raw / dirty operation over i/o socket, current process is blocked 
 -spec(do/2 :: (any(), any()) -> {ok, any()} | {error, any()}).
 
 do(Sock, Req) ->
 	cargo_io:do(Sock, Req).
+
+
+%%
+%% 
+% create(Sock, Entity) ->
+%    create(Sock, erlang:element(1, Entity), Entity).
+
+% create(Sock, Cask, Entity) ->
+%    do(Sock, Cask, Entity).
+
+
 
 %%%------------------------------------------------------------------
 %%%
@@ -139,19 +153,16 @@ do(Sock, Req) ->
 %%%
 %%%------------------------------------------------------------------   
 
-%%     {struct,    atom()} - struct identity
-%%     {keylen, integer()} - length of key   (default 1)
-%%     {property,[atom()]} - list of properties
-%%     {domain,    atom()} - storage domain   
-%%     {bucket,    atom()} - storage bucket  (default struct)
-%%     {index,     atom()} - storage index   (default 'PRIMARY')
-
 %%
 %% build cask meta data from options 
 define_cask(Opts) ->
    define_cask(Opts, #cask{}).
+define_cask([{id, X} | Opts], S) ->
+   define_cask(Opts, S#cask{id=X});   
 define_cask([{peer, X} | Opts], S) ->
-   define_cask(Opts, S#cask{peer=X});
+   {ok, Reader} = cargo_peer_sup:reader(X),
+   {ok, Writer} = cargo_peer_sup:writer(X),
+   define_cask(Opts, S#cask{peer=X, reader=Reader, writer=Writer});
 define_cask([{struct, X} | Opts], S) ->
    define_cask(Opts, S#cask{struct=X});
 define_cask([{keylen, X} | Opts], S) ->
@@ -197,9 +208,9 @@ t() ->
    {ok,   _} = cargo:join(test, [{host, mysqld}, {reader, 80}, {writer, 80}, {pool, 10}]),
    {ok, Pid} = cargo:cask([
       {peer,     test}
-     % ,{struct,   test}
-     % ,{property, [a,b,c]}
-     % ,{domain,   test}
+     ,{struct,   test}
+     ,{property, [a,b,c]}
+     ,{domain,   test}
    ]),
    {ok,  Tx} = pq:lease(Pid),
 	plib:call(Tx, fun tx/1).

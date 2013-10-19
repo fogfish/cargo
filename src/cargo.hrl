@@ -68,14 +68,26 @@
 %% cask definition
 -record(cask, {
 	id       = undefined  :: atom(),    % cask identity
-	peer     = undefined  :: atom(),    % peer assotiated with cask
+
+	% data type
 	struct   = undefined  :: atom(),    % struct identity
 	keylen   = 1          :: integer(), % length of key properties 
 	property = undefined  :: [atom()],  % list of properties
+
+	% storage
+	peer     = undefined  :: atom(),    % peer assotiated with cask
 	domain   = undefined  :: atom(),    % storage domain
 	bucket   = undefined  :: atom(),    % storage bucket
 	index    = undefined  :: atom(),    % storage index    
+
+	% i/o
 	capacity = 100        :: integer(), % storage i/o capacity
-	linger   = 100        :: integer()  % storage i/o linger   
+	linger   = 100        :: integer(), % storage i/o linger   
+
+	protocol = undefined  :: atom(),    % i/o protocol functor 
+	reader   = undefined  :: pid(),     % reader pool
+	writer   = undefined  :: pid(),     % writer pool
+	socket   = undefined  :: pid()      % socket (leased socket) 
 }).
+
 

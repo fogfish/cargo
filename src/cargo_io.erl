@@ -28,21 +28,22 @@
 
 %%
 %% create new dirty tx handler
--spec(init/2 :: (atom(), pid()) -> #iosock{}).
+-spec(init/2 :: (atom(), #cask{}) -> #cask{}).
 
-init(Mod, Pool) ->
-	#iosock{
-		mod  = Mod,
-		pool = Pool
+init(Protocol, #cask{}=S) ->
+	S#cask{
+		protocol = Protocol
 	}.
 
 %%
 %% release dirty tx handler
--spec(free/1 :: (#iosock{}) -> ok).
+-spec(free/1 :: (#cask{}) -> #cask{}).
 
-free(#iosock{}=S) ->
-	release(S),
-	ok.
+free(#cask{}=Cask0) ->
+	Cask = release_socket(Cask0),
+	Cask#cask{
+		protocol = undefined
+	}.
 
 
 %%
@@ -52,70 +53,99 @@ free(#iosock{}=S) ->
 %% until operation completed or timeout
 %% 
 %% @todo: timeout handling for request
--spec(do/2 :: (#iosock{}, any()) -> any()).
+-spec(do/2 :: (#cask{}, any()) -> any()).
 
-do(#iosock{mod=Mod}=S, Req) ->
-	do_request(lease(S), Mod:serialize(Req)).
+do(#cask{protocol=Protocol}=Cask, Req) ->
+	do_request(
+		lease_socket(request_type(Req), Cask), 
+		Protocol:request(Req)
+	).
 
-do_request(#iosock{}=S, Req) ->
+do_request(#cask{socket={_, Socket}}=Cask, Req) ->
    % @todo configurable i/o spin timeout
-	do_response(S, plib:cast(S#iosock.pid, Req), 2).
+	do_response(Cask, plib:cast(Socket, Req), 2).
 
 %% wait for response is two stage
 %% 1. wait for response and release socket after short time (spin timeout)
 %% 2. wait for response and abort transaction on timeout
-do_response(#iosock{pid=undefined}=S, Tx, Timeout) ->
+do_response(#cask{socket=undefined}=Cask, Tx, Timeout) ->
 	receive
 		% requested bucket is not initialized @todo
 		% {Tx, {error, nolink}} ->
 		{Tx, Rsp} ->
-			handle_response(release(S), Rsp)
+			handle_response(release_socket(Cask), Rsp)
 	after Timeout ->
 		exit(timeout)
 	end;
 
-do_response(#iosock{}=S, Tx, Timeout) ->
+do_response(#cask{}=Cask, Tx, Timeout) ->
 	receive
 		% requested bucket is not initialized @todo
 		% {Tx, {error, nolink}} ->
 		{Tx, Rsp} ->
-			handle_response(release(S), Rsp)
+			handle_response(release_socket(Cask), Rsp)
 	after Timeout ->
-		do_response(release(S), Tx, Timeout)
+		do_response(release_socket(Cask), Tx, Timeout)
 	end.
 
 
-handle_response(#iosock{}, Rsp) ->
+handle_response(#cask{protocol=Protocol}, Msg) ->
 	% @todo parse response
-	Rsp.
-
+	Protocol:response(Msg).
 
 
 %%
+%% check request type 
+-spec(request_type/1 :: (any()) -> reader | writer).
+
+request_type({create, _}) ->
+	writer;
+request_type({update, _}) ->
+	writer;
+request_type({delete, _}) ->
+	writer;
+request_type({lookup, _}) ->
+	reader;
+request_type(_) ->
+	% @todo remove this check, it is made for RnD only
+	reader. 
+
+%%
 %% lease i/o socket
--spec(lease/1 :: (#iosock{}) -> #iosock{}).
+%% @todo handle lease timeout
+-spec(lease_socket/2 :: (reader | writer, #cask{}) -> #cask{}).
 
-lease(#iosock{pid=undefined}=S) ->
-	% @todo: deq from node i/o pool + timeout
-	{ok, Pid} = pq:lease(S#iosock.pool),
-	S#iosock{
-		pid = Pid
+lease_socket(reader, #cask{socket=undefined}=S) ->
+	{ok, Pid} = pq:lease(S#cask.reader),
+	S#cask{
+		socket = {reader, Pid}
 	};
-
-lease(#iosock{}=S) ->
+lease_socket(writer, #cask{socket=undefined}=S) ->
+	{ok, Pid} = pq:lease(S#cask.writer),
+	S#cask{
+		socket = {writer, Pid}
+	};
+lease_socket(reader, #cask{socket=writer}=Cask) ->
+	lease_socket(reader, release_socket(Cask));
+lease_socket(writer, #cask{socket=reader}=Cask) ->
+	lease_socket(writer, release_socket(Cask));
+lease_socket(_, #cask{}=S) ->
 	S.
 
 %%
 %% release i/o socket
--spec(release/1 :: (#iosock{}) -> #iosock{}).
+-spec(release_socket/1 :: (#cask{}) -> #cask{}).
 
-release(#iosock{pid=undefined}=S) ->
+release_socket(#cask{socket=undefined}=S) ->
 	S;
-
-release(#iosock{pid=Pid}=S) ->
-	% @todo: enq used pid to node i/o pool
-	pq:release(S#iosock.pool, Pid),
-	S#iosock{
-		pid = undefined
+release_socket(#cask{socket={reader, Pid}}=S) ->
+	pq:release(S#cask.reader, Pid),
+	S#cask{
+		socket = undefined
+	};
+release_socket(#cask{socket={writer, Pid}}=S) ->
+	pq:release(S#cask.writer, Pid),
+	S#cask{
+		socket = undefined
 	}.
 
