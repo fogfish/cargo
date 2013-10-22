@@ -56,7 +56,7 @@ free(#cargo{}=Tx) ->
 		Writer    -> plib:send(Writer, free)
 	end,
 	ok.
-	
+
 %%
 %% execute atomic operation, the function wraps 
 %% asynchronous i/o communication to sequence of
@@ -74,22 +74,11 @@ prepare_request(Req, #cargo{protocol=Protocol, cask=[Cask|_]}=Tx0) ->
 	do_request(Protocol:request(Req, Cask), Socket, Tx).
 
 do_request(Req, Socket, Tx) ->
-	do_response(plib:cast(Socket, Req), 2, Tx).
-
-%% wait for response is two stage
-%% 1. wait for response and release socket after short time (spin timeout)
-%% 2. wait for response and abort transaction on timeout
-% do_response(Req, Timeout, #cargo{socket=undefined}=Tx) ->
-% 	receive
-% 		% requested bucket is not initialized @todo
-% 		% {Tx, {error, nolink}} ->
-% 		{Req, Msg} ->
-% 			handle_response(Msg, Tx)
-% 	after Timeout ->
-% 		exit(timeout)
-% 	end;
+	%% @todo make timeout configurable
+	do_response(plib:cast(Socket, Req), 5000, Tx).
 
 do_response(Req, Timeout, #cargo{}=Tx) ->
+   % wait for response and abort transaction on timeout
 	receive
 		% requested bucket is not initialized @todo
 		% {Tx, {error, nolink}} ->
@@ -98,7 +87,6 @@ do_response(Req, Timeout, #cargo{}=Tx) ->
 	after Timeout ->
 		do_response(Req, Timeout, Tx)
 	end.
-
 
 handle_response(Msg, #cargo{protocol=Protocol, cask=[Cask|_]}=Tx) ->
 	% @todo parse response

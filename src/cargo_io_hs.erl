@@ -34,8 +34,9 @@
 
 %% internal state
 -record(fsm, {
-	queue   = undefine :: pid(),  %% queue leader i/o object belongs to
-	spinner = undefine :: any()   %% spinner timeout
+	queue   = undefine :: pid(),    %% queue leader i/o object belongs to
+	spinner = undefine :: any(),    %% spinner timeout
+	q       = undefine :: datum:q() %% on-going tx
 }).
 
 %%%------------------------------------------------------------------
@@ -52,7 +53,8 @@ init([Queue, _Host, _Port]) ->
 	{ok, io, 
 		#fsm{
 			queue   = Pid,
-			spinner = opts:val(spin, 10, cargo)
+			spinner = opts:val(spin, 10, cargo),
+			q       = deq:new()
 		}
 	}.
 
@@ -83,11 +85,22 @@ io(free, _Tx, S) ->
 		}
 	};
 
-io(Msg, Tx, S) ->
+io({tcp, _, Msg}, _, S) ->
+	{Tx, Q} = q:deq(S#fsm.q),
 	plib:ack(Tx, Msg),
+	{next_state, io,
+		S#fsm{
+			q = Q
+		}
+	};
+
+io(Msg, Tx, S) ->
+	%% @todo socket i/o
+	erlang:send_after(1, self(), {tcp, undefined, Msg}),
 	{next_state, io, 
 		S#fsm{
-			spinner = tempus:reset(S#fsm.spinner, timeout)
+			spinner = tempus:reset(S#fsm.spinner, timeout),
+			q       = q:enq(Tx, S#fsm.q)
 		}
 	}.
 
