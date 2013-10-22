@@ -45,8 +45,7 @@ start()    ->
 	start(filename:join(["./priv", "dev.config"])).
 
 start(Cfg) -> 
-	applib:boot(?MODULE, Cfg), 
-   lager:set_loglevel(lager_console_backend, debug).
+	applib:boot(?MODULE, Cfg).
 
 %%%------------------------------------------------------------------
 %%%
@@ -217,6 +216,7 @@ t() ->
      ,{property, [a,b,c]}
      ,{domain,   test}
    ]),
+   lager:set_loglevel(lager_console_backend, debug),
    {ok,  Tx} = pq:lease(Pid),
 	plib:call(Tx, fun(X) -> tx(Pid, X) end).
 

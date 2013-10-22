@@ -52,6 +52,7 @@ start_link(Cask) ->
 	kfsm:start_link(?MODULE, [Cask], []).
 
 init([Cask]) ->
+   % @todo configurable protocol
 	Context = cargo_io:init(?CONFIG_IO_FAMILY, Cask#cask.peer, Cask),
 	{ok, handle, 
 		#srv{
@@ -74,19 +75,16 @@ ioctl(_, _) ->
 %%%------------------------------------------------------------------   
 
 handle(Fun, Tx, S) ->
-	% @todo configurable protocol
-%	IO = cargo_io:init(?CONFIG_IO_FAMILY, Cask),
 	try
-
-
-		plib:ack(Tx, {ok, Fun(S#srv.context)}),
+		{Status, Result, Context} = Fun(S#srv.context),
+		plib:ack(Tx, {Status, Result}),
+		cargo_io:free(Context),
 		{next_state, idle, S}
 	catch _Error:Reason ->
-		?ERROR("cargo tx failure: ~p ~p", [Reason, erlang:get_stacktrace()]),
+		?ERROR("cargo tx failed: ~p ~p", [Reason, erlang:get_stacktrace()]),
 		plib:ack(Tx, {error, Reason}),
+		% no need to clean-up context i/o handlers release itself after spin i/o
 		{next_state, idle, S}
-	%after 
-		%cargo_io:free(IO)	
 	end.
 
 

@@ -45,13 +45,18 @@ init(Protocol, Peer, #cask{}=Cask) ->
 -spec(free/1 :: (#cask{}) -> #cask{}).
 
 free(#cargo{}=Tx) ->
+	% free reader socket
+	case Tx#cargo.reader of
+		{pool, _} -> ok;
+		Reader    -> plib:send(Reader, free)
+	end,
+	% free writer socket
+	case Tx#cargo.writer of
+		{pool, _} -> ok;
+		Writer    -> plib:send(Writer, free)
+	end,
 	ok.
-	% Cask = release_socket(Cask0),
-	% Cask#cask{
-	% 	protocol = undefined
-	% }.
-
-
+	
 %%
 %% execute atomic operation, the function wraps 
 %% asynchronous i/o communication to sequence of
