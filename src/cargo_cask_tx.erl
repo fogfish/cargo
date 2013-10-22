@@ -35,6 +35,12 @@
 	handle/3
 ]).
 
+%% internal tx state
+-record(srv, {
+	cask    = undefined :: #cask{},
+	context = undefined :: #cargo{}
+
+}).
 
 %%%------------------------------------------------------------------
 %%%
@@ -46,7 +52,13 @@ start_link(Cask) ->
 	kfsm:start_link(?MODULE, [Cask], []).
 
 init([Cask]) ->
-	{ok, handle, Cask}.
+	Context = cargo_io:init(?CONFIG_IO_FAMILY, Cask#cask.peer, Cask),
+	{ok, handle, 
+		#srv{
+			cask    = Cask,
+			context = Context
+		}
+	}.
 
 free(_, _) ->
 	ok.
@@ -61,18 +73,20 @@ ioctl(_, _) ->
 %%%
 %%%------------------------------------------------------------------   
 
-handle(Fun, Tx, Cask) ->
+handle(Fun, Tx, S) ->
 	% @todo configurable protocol
-	IO = cargo_io:init(?CONFIG_IO_FAMILY, Cask),
+%	IO = cargo_io:init(?CONFIG_IO_FAMILY, Cask),
 	try
-		plib:ack(Tx, {ok, Fun(IO)}),
-		{next_state, idle, Cask}
+
+
+		plib:ack(Tx, {ok, Fun(S#srv.context)}),
+		{next_state, idle, S}
 	catch _Error:Reason ->
-		io:format("--> ~p~n", [erlang:get_stacktrace()]),
+		?ERROR("cargo tx failure: ~p ~p", [Reason, erlang:get_stacktrace()]),
 		plib:ack(Tx, {error, Reason}),
-		{next_state, idle, Cask}
-	after 
-		cargo_io:free(IO)	
+		{next_state, idle, S}
+	%after 
+		%cargo_io:free(IO)	
 	end.
 
 

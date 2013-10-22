@@ -36,9 +36,10 @@
 
 %%
 -define(QUEUE(Port, Opts),  [
-	{type,     reusable}
+   {type,     reusable}
   ,{worker,   {?CONFIG_IO_FAMILY, [opts:val(host, Opts), Port]}}
   ,{capacity, opts:val(pool, Opts)}
+  ,'self-release'  %% self-release allows to achieve spin i/o
 ]).
 
 %%

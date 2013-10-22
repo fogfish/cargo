@@ -33,7 +33,7 @@
 	peers/0,
 
 	do/2,
-   % create/2,
+   create/2,
    % create/3,
 
 	t/0
@@ -45,7 +45,8 @@ start()    ->
 	start(filename:join(["./priv", "dev.config"])).
 
 start(Cfg) -> 
-	applib:boot(?MODULE, Cfg).
+	applib:boot(?MODULE, Cfg), 
+   lager:set_loglevel(lager_console_backend, debug).
 
 %%%------------------------------------------------------------------
 %%%
@@ -131,11 +132,15 @@ peers() ->
 
 %%
 %% execute raw / dirty operation over i/o socket, current process is blocked 
--spec(do/2 :: (any(), any()) -> {ok, any()} | {error, any()}).
+-spec(do/2 :: (#cask{}, any()) -> {ok, any()} | {error, any()}).
 
-do(Sock, Req) ->
-	cargo_io:do(Sock, Req).
+do(#cask{}=Cask, Req) ->
+	cargo_io:do(Cask, Req).
 
+%%
+%% create entity
+create(#cask{}=Cask, Entity) ->
+   cargo:do(Cask, {create, Entity}).
 
 %%
 %% 
@@ -213,12 +218,13 @@ t() ->
      ,{domain,   test}
    ]),
    {ok,  Tx} = pq:lease(Pid),
-	plib:call(Tx, fun tx/1).
+	plib:call(Tx, fun(X) -> tx(Pid, X) end).
 
 
-tx(IO) ->
-	R = cargo:do(IO, req),
-	io:format("--> ~p~n", [R]),
-	cargo:do(IO, req1).
+tx(Pid, Cask0) ->
+	{ok, Result, Cask1} = cargo_io:do(Pid, {a,b,c}, Cask0), 
+   %cargo:create(IO, {a,b,c}),
+	io:format("--> ~p~n", [Result]),
+	{ok, _, Cask2} = cargo_io:do(Pid, req1, Cask1).
 
 

@@ -19,19 +19,23 @@
 -module(cargo_io_hs).
 -behaviour(pipe).
 
+-include("cargo.hrl").
+
 -export([
-	start_link/2,
+	start_link/3,
 	init/1,
 	free/2,
 	ioctl/2,
 	io/3,
 
-	request/1,
-	response/1
+	request/2,
+	response/2
 ]).
 
 %% internal state
 -record(fsm, {
+	queue   = undefine :: pid(),  %% queue leader i/o object belongs to
+	spinner = undefine :: any()   %% spinner timeout
 }).
 
 %%%------------------------------------------------------------------
@@ -40,12 +44,15 @@
 %%%
 %%%------------------------------------------------------------------   
 
-start_link(Host, Port) ->
-	pipe:start_link(?MODULE, [Host, Port], []).
+start_link(Queue, Host, Port) ->
+	pipe:start_link(?MODULE, [Queue, Host, Port], []).
 
-init([_Host, _Port]) ->
+init([Queue, _Host, _Port]) ->
+   {ok, Pid} = pq:queue(Queue),
 	{ok, io, 
 		#fsm{
+			queue   = Pid,
+			spinner = opts:val(spin, 10, cargo)
 		}
 	}.
 
@@ -61,9 +68,18 @@ ioctl(_, _) ->
 %%%
 %%%------------------------------------------------------------------   
 
+io(timeout, Tx, S) ->
+	?DEBUG("cargo hs: spin expired"),
+	pq:release(S#fsm.queue, self()),
+	{next_state, io, S};
+
 io(Msg, Tx, S) ->
 	plib:ack(Tx, Msg),
-	{next_state, io, S}.
+	{next_state, io, 
+		S#fsm{
+			spinner = tempus:reset(S#fsm.spinner, timeout)
+		}
+	}.
 
 
 %%
@@ -72,12 +88,12 @@ io(Msg, Tx, S) ->
 %%  * resolves physical bucket handle (32-bit number)
 %%  * splits tuple to key / val parts
 %%  * serializes request to write format 
-request(Req) ->
+request(Req, _Cask) ->
 	Req.
 
 %%
 %% serializes storage response to client tuple
-response(Rsp) ->
+response(Rsp, _Cask) ->
 	Rsp.
 
 

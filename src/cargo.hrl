@@ -44,8 +44,10 @@
 
 -ifndef(DEBUG).
    -ifdef(CONFIG_DEBUG).
+		-define(DEBUG(Msg),       lager:debug(Msg)).
 		-define(DEBUG(Fmt, Args), lager:debug(Fmt, Args)).
 	-else.
+		-define(DEBUG(Msg),       ok).
 		-define(DEBUG(Fmt, Args), ok).
 	-endif.
 -endif.
@@ -55,6 +57,18 @@
 %%% records
 %%%
 %%%------------------------------------------------------------------   
+
+%%
+%% cargo i/o context
+-record(cargo, {
+	protocol = undefined  :: atom(),  % i/o protocol
+	reader   = undefined  :: pid(),   % reader pool / leased socket
+	writer   = undefined  :: pid(),   % writer pool / leased socket
+	cask     = []         :: list()   % list of cask bound to transaction 
+}).
+
+
+
 
 %%
 %% dirty (raw) i/o socket (used by tx object)
@@ -67,7 +81,8 @@
 %%
 %% cask definition
 -record(cask, {
-	id       = undefined  :: atom(),    % cask identity
+	id       = undefined  :: atom(),    % cask name 
+	uid      = undefined  :: integer(), % cask unique identity
 
 	% data type
 	struct   = undefined  :: atom(),    % struct identity
@@ -84,6 +99,7 @@
 	capacity = 100        :: integer(), % storage i/o capacity
 	linger   = 100        :: integer(), % storage i/o linger   
 
+	% @depricated
 	protocol = undefined  :: atom(),    % i/o protocol functor 
 	reader   = undefined  :: pid(),     % reader pool
 	writer   = undefined  :: pid(),     % writer pool
