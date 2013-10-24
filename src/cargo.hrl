@@ -25,7 +25,8 @@
 -define(CONFIG_DEBUG,     true).
 
 %% default i/o protocol family
--define(CONFIG_IO_FAMILY, cargo_io_hs).
+%-define(CONFIG_IO_FAMILY, cargo_io_hs).
+-define(CONFIG_IO_FAMILY, cargo_io_debug).
 
 %% default cask index
 -define(CONFIG_INDEX,     'PRIMARY').

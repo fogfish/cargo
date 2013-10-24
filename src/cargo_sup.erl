@@ -42,7 +42,10 @@ init([]) ->
    {ok,
       {
          {one_for_one, 2, 1800},
-         []
+         [
+            %% identity server
+            ?CHILD(worker, cargo_identity)
+         ]
       }
    }.
 
