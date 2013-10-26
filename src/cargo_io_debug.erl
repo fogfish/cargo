@@ -15,7 +15,7 @@
 %%   limitations under the License.
 %%
 %% @description
-%%   dummy i/o protocol handler for debug purposes, all i/o routed to ets table
+%%   dummy i/o protocol handler for debug purposes
 -module(cargo_io_debug).
 -behaviour(pipe).
 
@@ -26,8 +26,8 @@
 	init/1,
 	free/2,
 	ioctl/2,
-	io/3,
-
+	'IDLE'/3,
+	'WIRE'/3,
 	request/2,
 	response/2
 ]).
@@ -49,7 +49,7 @@ start_link(Queue, Host, Port) ->
 	pipe:start_link(?MODULE, [Queue, Host, Port], []).
 
 init([Queue, _Host, _Port]) ->
-	{ok, io, 
+	{ok, 'IDLE', 
 		#fsm{
 			queue   = Queue,
 			spinner = opts:val(spin, 10, cargo),
@@ -62,47 +62,12 @@ free(_, _) ->
 
 ioctl(_, _) ->
 	throw(not_supported).
-	
+
 %%%------------------------------------------------------------------
 %%%
-%%% i/o handler
+%%% api
 %%%
 %%%------------------------------------------------------------------   
-
-io(timeout, _Tx, S) ->
-	%% @todo make busy (leased) / free (released) state (double release NFG)
-	?DEBUG("cargo debug: ~p spin expired", [self()]),
-	pq:release(S#fsm.queue, self()),
-	{next_state, io, S};
-
-io(free, _Tx, S) ->
-	?DEBUG("cargo debug: ~p free", [self()]),
-	pq:release(S#fsm.queue, self()),
-	{next_state, io, 
-		S#fsm{
-			spinner = tempus:cancel(S#fsm.spinner)
-		}
-	};
-
-io({tcp, _, Msg}, _, S) ->
-	{Tx, Q} = q:deq(S#fsm.q),
-	plib:ack(Tx, Msg),
-	{next_state, io,
-		S#fsm{
-			q = Q
-		}
-	};
-
-io(Msg, Tx, S) ->
-	%% @todo socket i/o
-	erlang:send_after(1, self(), {tcp, undefined, Msg}),
-	{next_state, io, 
-		S#fsm{
-			spinner = tempus:reset(S#fsm.spinner, timeout),
-			q       = q:enq(Tx, S#fsm.q)
-		}
-	}.
-
 
 %%
 %% serialize client request to protocol format
@@ -117,5 +82,77 @@ request(Req, _Cask) ->
 %% serializes storage response to client tuple
 response(Rsp, _Cask) ->
 	Rsp.
+
+
+%%%------------------------------------------------------------------
+%%%
+%%% IDLE
+%%%
+%%%------------------------------------------------------------------   
+
+'IDLE'(timeout, _, S) ->
+	{next_state, 'IDLE', S};
+
+'IDLE'(free,    _, S) ->
+	{next_state, 'IDLE', S};
+
+'IDLE'({tcp, _, Msg}, _, S) ->
+	{Tx, Q} = q:deq(S#fsm.q),
+	plib:ack(Tx, Msg),
+	{next_state, 'IDLE',
+		S#fsm{
+			q = Q
+		}
+	};
+
+'IDLE'(Msg, Tx, S) ->
+	erlang:send_after(1, self(), {tcp, undefined, Msg}),
+	{next_state, 'WIRE', 
+		S#fsm{
+			spinner = tempus:reset(S#fsm.spinner, timeout),
+			q       = q:enq(Tx, S#fsm.q)
+		}
+	}.
+	
+%%%------------------------------------------------------------------
+%%%
+%%% WIRE
+%%%
+%%%------------------------------------------------------------------   
+
+'WIRE'(timeout, _Tx, S) ->
+	?DEBUG("cargo debug: ~p spin expired", [self()]),
+	pq:release(S#fsm.queue, self()),
+	{next_state, 'IDLE', S};
+
+'WIRE'(free, _Tx, S) ->
+	?DEBUG("cargo debug: ~p free", [self()]),
+	pq:release(S#fsm.queue, self()),
+	{next_state, 'IDLE', 
+		S#fsm{
+			spinner = tempus:cancel(S#fsm.spinner)
+		}
+	};
+
+'WIRE'({tcp, _, Msg}, _, S) ->
+	{Tx, Q} = q:deq(S#fsm.q),
+	plib:ack(Tx, Msg),
+	{next_state, 'WIRE',
+		S#fsm{
+			q = Q
+		}
+	};
+
+'WIRE'(Msg, Tx, S) ->
+	erlang:send_after(1, self(), {tcp, undefined, Msg}),
+	{next_state, 'WIRE', 
+		S#fsm{
+			spinner = tempus:reset(S#fsm.spinner, timeout),
+			q       = q:enq(Tx, S#fsm.q)
+		}
+	}.
+
+
+
 
 
