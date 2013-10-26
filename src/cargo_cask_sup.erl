@@ -22,8 +22,10 @@
 -include("cargo.hrl").
 
 -export([
-   start_link/1,
+   start_link/2,
+   start_link/3,
    init/1,
+   %% api
    client_api/1
 ]).
 
@@ -34,32 +36,104 @@
 
 %%
 -define(QUEUE(X),  [
-   {type,      reusable}
+   'self-release'
+  ,{type,      reusable}
   ,{worker,    {cargo_cask_tx, [Cask]}}
   ,{capacity,  X#cask.capacity}
   ,{linger,    X#cask.linger}
 ]).
 
+%% @todo: if Cask#cask.id is not defined set it to PID of queue (may be Sup ID should be used, expose multiple API)
+
 %%
-start_link(Cask) ->
-   supervisor:start_link(?MODULE, [Cask]).
+%%
+start_link(Name, Opts) ->
+   supervisor:start_link(?MODULE, [undefined, define_cask([{id, Name}|Opts])]).
+
+start_link(Owner, Name, Opts) ->
+   supervisor:start_link(?MODULE, [Owner, define_cask([{id, Name}|Opts])]).
    
-init([Cask]) ->   
+init([Owner, Cask]) ->   
    {ok,
       {
-         {one_for_one, 2, 1800},
+         {one_for_all, 0, 1},
          [
-            % tx i/o pool
-            ?CHILD(supervisor, pq, [Cask#cask.id, ?QUEUE(Cask)])
+            % cask leader
+            ?CHILD(worker, cargo_cask, [Owner, Cask])
+            % cask tx pool
+           ,?CHILD(supervisor, pq, [Cask#cask.id, ?QUEUE(Cask)])
          ]
       }
    }.
 
 %%
+%%
+child(Sup, Id) ->
+   erlang:element(2,
+      lists:keyfind(Id, 1, supervisor:which_children(Sup))
+   ).
+
+
+%%
 %% return pid of client api
 client_api(Sup) ->
-   {_, Pid, _, _} = lists:keyfind(pq, 1, supervisor:which_children(Sup)),
-   pq:queue(Pid).
+   {ok, child(Sup, pq)}.
 
+
+%%%------------------------------------------------------------------
+%%%
+%%% private
+%%%
+%%%------------------------------------------------------------------   
+
+%%
+%% build cask meta data from options 
+define_cask(Opts) ->
+   define_cask(Opts, #cask{}).
+define_cask([{id, X} | Opts], S) ->
+   define_cask(Opts, S#cask{id=X});   
+define_cask([{peer, X} | Opts], S) ->
+   define_cask(Opts, S#cask{peer=X});
+define_cask([{struct, X} | Opts], S) ->
+   define_cask(Opts, S#cask{struct=X});
+define_cask([{keylen, X} | Opts], S) ->
+   define_cask(Opts, S#cask{keylen=X});
+define_cask([{property, X} | Opts], S) ->
+   define_cask(Opts, S#cask{property=X});
+define_cask([{domain, X} | Opts], S) ->
+   define_cask(Opts, S#cask{domain=X});
+define_cask([{bucket, X} | Opts], S) ->
+   define_cask(Opts, S#cask{bucket=X});
+define_cask([{index, X} | Opts], S) ->
+   define_cask(Opts, S#cask{index=X});
+define_cask([{capacity, X} | Opts], S) ->
+   define_cask(Opts, S#cask{capacity=X});
+define_cask([{linger, X} | Opts], S) ->
+   define_cask(Opts, S#cask{linger=X});
+define_cask([_ | Opts], S) ->
+   define_cask(Opts, S);
+define_cask([], Cask) ->
+   S = assert_cask(Cask),
+   %% lookup unique id
+   Hash = erlang:phash2([S#cask.domain, S#cask.bucket, S#cask.index, S#cask.property]),
+   {ok, Uid} = cargo_identity:lookup(Hash),
+   S#cask{
+      uid = Uid
+   }.
+
+assert_cask(#cask{peer=undefined}) ->
+   exit({bagarg, peer});
+assert_cask(#cask{struct=undefined}) ->
+   exit({bagarg, struct});
+assert_cask(#cask{property=undefined}) ->
+   exit({bagarg, property});
+assert_cask(#cask{domain=undefined}) ->
+   exit({bagarg, domain});
+assert_cask(#cask{bucket=undefined}=S) ->
+   assert_cask(S#cask{bucket=S#cask.struct});
+assert_cask(#cask{index=undefined}=S) ->
+   assert_cask(S#cask{index=?CONFIG_DEFAULT_INDEX});
+assert_cask(Cask) ->
+   Cask.
 
 

@@ -36,10 +36,10 @@
 
 %%
 -define(QUEUE(Port, Opts),  [
-   {type,     reusable}
+   'self-release'  %% self-release allows to achieve spin i/o
+  ,{type,     reusable}
   ,{worker,   {?CONFIG_IO_FAMILY, [opts:val(host, Opts), Port]}}
   ,{capacity, opts:val(pool, Opts)}
-  ,'self-release'  %% self-release allows to achieve spin i/o
 ]).
 
 %%
@@ -62,13 +62,19 @@ init([Opts]) ->
 
 %%
 %%
+child(Sup, Id) ->
+   erlang:element(2,
+      lists:keyfind(Id, 1, supervisor:which_children(Sup))
+   ).
+
+%%
+%%
 reader(Sup) ->
-   {_, Pid, _, _} = lists:keyfind(reader, 1, supervisor:which_children(Sup)),
-   pq:queue(Pid).
+   {ok, child(Sup, reader)}.
 
 %%
 %%
 writer(Sup) ->
-   {_, Pid, _, _} = lists:keyfind(writer, 1, supervisor:which_children(Sup)),
-   pq:queue(Pid).
+   {ok, child(Sup, writer)}.
+
 

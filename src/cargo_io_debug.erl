@@ -15,8 +15,8 @@
 %%   limitations under the License.
 %%
 %% @description
-%%   i/o protocol handler - handler socket
--module(cargo_io_hs).
+%%   dummy i/o protocol handler for debug purposes, all i/o routed to ets table
+-module(cargo_io_debug).
 -behaviour(pipe).
 
 -include("cargo.hrl").
@@ -71,12 +71,12 @@ ioctl(_, _) ->
 
 io(timeout, _Tx, S) ->
 	%% @todo make busy (leased) / free (released) state (double release NFG)
-	?DEBUG("cargo hs: ~p spin expired", [self()]),
+	?DEBUG("cargo debug: ~p spin expired", [self()]),
 	pq:release(S#fsm.queue, self()),
 	{next_state, io, S};
 
 io(free, _Tx, S) ->
-	?DEBUG("cargo hs: ~p free", [self()]),
+	?DEBUG("cargo debug: ~p free", [self()]),
 	pq:release(S#fsm.queue, self()),
 	{next_state, io, 
 		S#fsm{

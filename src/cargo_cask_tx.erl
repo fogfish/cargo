@@ -28,7 +28,7 @@
 -include("cargo.hrl").
 
 -export([
-	start_link/1,
+	start_link/2,
 	init/1,
 	free/2,
 	ioctl/2,
@@ -37,7 +37,7 @@
 
 %% internal tx state
 -record(srv, {
-	cask    = undefined :: #cask{},
+	queue   = undefined :: pid(),
 	context = undefined :: #cargo{}
 
 }).
@@ -48,15 +48,15 @@
 %%%
 %%%------------------------------------------------------------------   
 
-start_link(Cask) ->
-	kfsm:start_link(?MODULE, [Cask], []).
+start_link(Queue, Cask) ->
+	kfsm:start_link(?MODULE, [Queue, Cask], []).
 
-init([Cask]) ->
+init([Queue, Cask]) ->
    % @todo configurable protocol
-	Context = cargo_io:init(?CONFIG_IO_FAMILY, Cask#cask.peer, Cask),
+	Context = cargo_io:init(?CONFIG_IO_FAMILY, Cask#cask.peer, set_cask_id(Queue, Cask)),
 	{ok, handle, 
 		#srv{
-			cask    = Cask,
+			queue   = Queue,
 			context = Context
 		}
 	}.
@@ -79,11 +79,13 @@ handle(Fun, Tx, S) ->
 		{Status, Result, Context} = Fun(S#srv.context),
 		plib:ack(Tx, {Status, Result}),
 		cargo_io:free(Context),
+		pq:release(S#srv.queue, self()),
 		{next_state, idle, S}
 	catch _Error:Reason ->
 		?ERROR("cargo tx failed: ~p ~p", [Reason, erlang:get_stacktrace()]),
 		plib:ack(Tx, {error, Reason}),
 		% no need to clean-up context i/o handlers release itself after spin i/o
+		pq:release(S#srv.queue, self()),
 		{next_state, idle, S}
 	end.
 
@@ -93,3 +95,10 @@ handle(Fun, Tx, S) ->
 %%% private
 %%%
 %%%------------------------------------------------------------------   
+
+%%
+set_cask_id(Pid,  #cask{id=undefined}=S) ->
+	S#cask{id=Pid};
+set_cask_id(_Pid, Cask) ->
+	Cask.
+

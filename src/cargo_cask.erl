@@ -15,24 +15,21 @@
 %%   limitations under the License.
 %%
 %% @description
-%%   cargo identity server maps cask physical attributes to unique sequential number
--module(cargo_identity).
+%%   cask leader
+-module(cargo_cask).
 -behaviour(kfsm).
 
 -export([
-	start_link/0,
+	start_link/2,
 	init/1,
 	free/2,
 	ioctl/2,
-	handle/3,
+	handle/3
 	%% api
-	lookup/1
 ]).
 
 %% internal server state
 -record(srv, {
-	seq   = 1         :: integer(),
-	table = undefined :: integer() 
 }).
 
 
@@ -42,14 +39,13 @@
 %%%
 %%%------------------------------------------------------------------   
 
-start_link() ->
-	kfsm:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Owner, Cask) ->
+	kfsm:start_link(?MODULE, [Owner, Cask], []).
 
-init(_) ->
+init([Owner, _Cask]) ->
+	_ = link_to_owner(Owner),
 	{ok, handle, 
 		#srv{
-			%% @todo: use other data type (e.g. dict, tree)
-			table = ets:new(undefined, [protected, set]) 
 		}
 	}.
 
@@ -65,9 +61,6 @@ ioctl(_, _) ->
 %%%
 %%%------------------------------------------------------------------   
 
-lookup(Cask) ->
-	plib:call(?MODULE, {lookup, Cask}).
-
 
 %%%------------------------------------------------------------------
 %%%
@@ -75,19 +68,17 @@ lookup(Cask) ->
 %%%
 %%%------------------------------------------------------------------   
 
-handle({lookup, Cask}, Tx, S) ->
-	case ets:lookup(S#srv.table, Cask) of
-		[] ->
-			true = ets:insert_new(S#srv.table, {Cask, S#srv.seq}),
-			plib:ack(Tx, {ok, S#srv.seq}),
-			{next_state, handle, S#srv{seq = S#srv.seq + 1}};
-		[{_, Uid}] ->
-			plib:ack(Tx, {ok, Uid}),
-			{next_state, handle, S}
-	end;
-
 handle(_, _Tx, S) ->
 	{next_state, handle, S}.
 
 
+%%%------------------------------------------------------------------
+%%%
+%%% private
+%%%
+%%%------------------------------------------------------------------   
 
+link_to_owner(undefined) ->
+	ok;
+link_to_owner(Pid) ->
+	erlang:link(Pid).

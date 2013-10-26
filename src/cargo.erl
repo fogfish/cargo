@@ -25,6 +25,7 @@
 	start_link/1,
 	start_link/2,
 	cask/1,
+	cask/2,
 	% cask interface
 
 	% peer interface
@@ -70,25 +71,27 @@ start(Cfg) ->
 -spec(start_link/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
 start_link(Opts) ->
-   cargo_cask_sup:start_link(assert_cask(define_cask(Opts))).
+	start_link(undefined, Opts).
 
 start_link(Name, Opts) ->
-   cargo_cask_sup:start_link(assert_cask(define_cask([{id, Name}|Opts]))).
+	case supervisor:start_child(cargo_cask_root_sup, [self(), Name, Opts]) of
+		{ok, Pid} -> cargo_cask_sup:client_api(Pid);
+		Error     -> Error
+	end.
 
 %%
 %% start storage cask components, returns pid of cask process
 -spec(cask/1 :: (list()) -> {ok, pid()} | {error, any()}).
+-spec(cask/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
-cask(Opts)
- when is_list(Opts) ->
-   case start_link(Opts) of
+cask(Opts) ->
+	cask(undefined, Opts).
+
+cask(Name, Opts) ->
+   case supervisor:start_child(cargo_cask_root_sup, [Name, Opts]) of
       {ok, Pid} -> cargo_cask_sup:client_api(Pid);
       Error     -> Error
-   end;
-
-cask(Pid)
- when is_pid(Pid) ->
-   cargo_cask_sup:client_api(Pid).
+   end.
 
 
 %%%------------------------------------------------------------------
@@ -157,56 +160,6 @@ create(#cask{}=Cask, Entity) ->
 %%%
 %%%------------------------------------------------------------------   
 
-%%
-%% build cask meta data from options 
-define_cask(Opts) ->
-   define_cask(Opts, #cask{}).
-define_cask([{id, X} | Opts], S) ->
-   define_cask(Opts, S#cask{id=X});   
-define_cask([{peer, X} | Opts], S) ->
-   {ok, Reader} = cargo_peer_sup:reader(X),
-   {ok, Writer} = cargo_peer_sup:writer(X),
-   define_cask(Opts, S#cask{peer=X, reader=Reader, writer=Writer});
-define_cask([{struct, X} | Opts], S) ->
-   define_cask(Opts, S#cask{struct=X});
-define_cask([{keylen, X} | Opts], S) ->
-   define_cask(Opts, S#cask{keylen=X});
-define_cask([{property, X} | Opts], S) ->
-   define_cask(Opts, S#cask{property=X});
-define_cask([{domain, X} | Opts], S) ->
-   define_cask(Opts, S#cask{domain=X});
-define_cask([{bucket, X} | Opts], S) ->
-   define_cask(Opts, S#cask{bucket=X});
-define_cask([{index, X} | Opts], S) ->
-   define_cask(Opts, S#cask{index=X});
-define_cask([{capacity, X} | Opts], S) ->
-   define_cask(Opts, S#cask{capacity=X});
-define_cask([{linger, X} | Opts], S) ->
-   define_cask(Opts, S#cask{linger=X});
-define_cask([_ | Opts], S) ->
-   define_cask(Opts, S);
-define_cask([], Cask) ->
-   Cask.
-
-assert_cask(#cask{peer=undefined}) ->
-   exit({bagarg, peer});
-assert_cask(#cask{struct=undefined}) ->
-   exit({bagarg, struct});
-assert_cask(#cask{property=undefined}) ->
-   exit({bagarg, property});
-assert_cask(#cask{domain=undefined}) ->
-   exit({bagarg, domain});
-assert_cask(#cask{bucket=undefined}=S) ->
-   assert_cask(S#cask{bucket=S#cask.struct});
-assert_cask(#cask{index=undefined}=S) ->
-   assert_cask(S#cask{index=?CONFIG_INDEX});
-assert_cask(Cask) ->
-   Cask.
-
-
-
-
-
 
 t() ->
    {ok,   _} = cargo:join(test, [{host, mysqld}, {reader, 80}, {writer, 80}, {pool, 10}]),
@@ -216,6 +169,13 @@ t() ->
      ,{property, [a,b,c]}
      ,{domain,   test}
    ]),
+   {ok,   _} = cargo:cask(aaa, [
+      {peer,     test}
+     ,{struct,   test}
+     ,{property, [a,b,c,d,e,f]}
+     ,{domain,   test}
+   ]),
+
    lager:set_loglevel(lager_console_backend, debug),
    {ok,  Tx} = pq:lease(Pid),
 	plib:call(Tx, fun(X) -> tx(Pid, X) end).
@@ -225,6 +185,6 @@ tx(Pid, Cask0) ->
 	{ok, Result, Cask1} = cargo_io:do(Pid, {a,b,c}, Cask0), 
    %cargo:create(IO, {a,b,c}),
 	io:format("--> ~p~n", [Result]),
-	{ok, _, Cask2} = cargo_io:do(Pid, req1, Cask1).
+	{ok, _, Cask2} = cargo_io:do(aaa, req1, Cask1).
 
 

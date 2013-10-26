@@ -29,7 +29,7 @@
 -define(CONFIG_IO_FAMILY, cargo_io_debug).
 
 %% default cask index
--define(CONFIG_INDEX,     'PRIMARY').
+-define(CONFIG_DEFAULT_INDEX,  'PRIMARY').
 
 %%%------------------------------------------------------------------
 %%%
@@ -98,13 +98,7 @@
 
 	% i/o
 	capacity = 100        :: integer(), % storage i/o capacity
-	linger   = 100        :: integer(), % storage i/o linger   
-
-	% @depricated
-	protocol = undefined  :: atom(),    % i/o protocol functor 
-	reader   = undefined  :: pid(),     % reader pool
-	writer   = undefined  :: pid(),     % writer pool
-	socket   = undefined  :: pid()      % socket (leased socket) 
+	linger   = 100        :: integer()  % storage i/o linger   
 }).
 
 
