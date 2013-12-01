@@ -20,7 +20,7 @@
 -behaviour(kfsm).
 
 -export([
-	start_link/2,
+	start_link/3,
 	init/1,
 	free/2,
 	ioctl/2,
@@ -39,11 +39,11 @@
 %%%
 %%%------------------------------------------------------------------   
 
-start_link(Owner, Cask) ->
-	kfsm:start_link(?MODULE, [Owner, Cask], []).
+start_link(Owner, Name, Cask) ->
+	kfsm:start_link(?MODULE, [Owner, Name, Cask], []).
 
-init([Owner, _Cask]) ->
-	_ = link_to_owner(Owner),
+init([Owner, _Name, _Cask]) ->
+	_ = erlang:link(Owner),
 	{ok, handle, 
 		#srv{
 		}

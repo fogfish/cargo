@@ -19,149 +19,58 @@
 -module(cargo_io). 
 
 -include("cargo.hrl").
+-include_lib("hcask/include/hcask.hrl").
 
 -export([
-	init/3,
+	init/2,
 	free/1,
+	do/2,
 	do/3
 ]).
 
 %%
 %% create new dirty tx handler
--spec(init/3 :: (atom(), atom(), #cask{}) -> #cask{}).
+-spec(init/2 :: (atom(), #hcask{}) -> #hio{}).
 
-init(Protocol, Peer, #cask{}=Cask) ->
-   {ok, Reader} = cargo_peer_sup:reader(Peer),
-   {ok, Writer} = cargo_peer_sup:writer(Peer),
-	#cargo{
-		protocol  = Protocol,
-		reader    = {pool, Reader},
-		writer    = {pool, Writer},
-		cask      = [Cask]
-	}.
+init(Protocol, #hcask{}=Cask) ->
+	hcask_io:init(Protocol, Cask).
 
 %%
 %% release dirty tx handler
--spec(free/1 :: (#cask{}) -> #cask{}).
+-spec(free/1 :: (#hio{}) -> ok).
 
-free(#cargo{}=Tx) ->
-	% free reader socket
-	case Tx#cargo.reader of
-		{pool, _} -> ok;
-		Reader    -> plib:send(Reader, free)
-	end,
-	% free writer socket
-	case Tx#cargo.writer of
-		{pool, _} -> ok;
-		Writer    -> plib:send(Writer, free)
-	end,
-	ok.
+free(#hio{}=IO) ->
+	hcask_io:free(IO).
 
 %%
-%% execute atomic operation, the function wraps 
-%% asynchronous i/o communication to sequence of
-%% synchronous primitives. Caller process is blocked
-%% until operation completed or timeout
-%% 
 %% @todo: timeout handling for request
--spec(do/3 :: (atom() | pid(), any(), #cargo{}) -> {ok, any(), #cargo{}} | {error, any(), #cargo{}}).
+-spec(do/2 :: (any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+-spec(do/3 :: (atom() | pid(), any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
 
-do(Cask, Req, #cargo{}=Tx) ->
-	prepare_request(Req, select_cask(Cask, Tx)).
+do(Req, #hio{}=IO) ->
+	hcask_io:do(Req, IO).	
 
-prepare_request(Req, #cargo{protocol=Protocol, cask=[Cask|_]}=Tx0) ->
-   {Socket, Tx} = lease_socket(request_type(Req), Tx0),
-	do_request(Protocol:request(Req, Cask), Socket, Tx).
-
-do_request(Req, Socket, Tx) ->
-	%% @todo make timeout configurable
-	do_response(plib:cast(Socket, Req), 5000, Tx).
-
-do_response(Req, Timeout, #cargo{}=Tx) ->
-   % wait for response and abort transaction on timeout
-	receive
-		% requested bucket is not initialized @todo
-		% {Tx, {error, nolink}} ->
-		{Req, Msg} ->
-			handle_response(Msg, Tx)
-	after Timeout ->
-		do_response(Req, Timeout, Tx)
-	end.
-
-handle_response(Msg, #cargo{protocol=Protocol, cask=[Cask|_]}=Tx) ->
-	% @todo parse response
-	{ok, Protocol:response(Msg, Cask), Tx}.
-
+do(Cask, Req, #hio{}=IO) ->
+	hcask_io:do(Req, select_cask(Cask, IO)).
 
 %%
 %% select cask handle
--spec(select_cask/2 :: (atom() | pid(), #cargo{}) -> #cargo{}).
+-spec(select_cask/2 :: (atom() | pid(), #hio{}) -> #hio{}).
 
-select_cask(Cask, #cargo{cask=[#cask{id=Cask} | _]}=Tx) ->
+select_cask(Cask, #hio{cask=[#hcask{name=Cask} | _]}=IO) ->
 	% cask is selected
-	Tx;
+	IO;
 
-select_cask(Cask, #cargo{}=Tx) ->
-	case lists:keytake(Cask, #cask.id, Tx#cargo.cask) of
+select_cask(Cask, #hio{}=IO) ->
+	case lists:keytake(Cask, #hcask.name, IO#hio.cask) of
 		% cask is exists at context
 		{value, Head, Tail} -> 
-			Tx#cargo{cask   = [Head | Tail]};
+			IO#hio{cask=[Head | Tail]};
 		% cask do not exists
 		false ->
 			?DEBUG("cargo i/o: select cask ~p", [Cask]),
 			{ok, {_, Head}} = pq:worker(Cask),
-			Tx#cargo{cask   = [Head | Tx#cargo.cask]}
+			IO#hio{cask=[Head | IO#hio.cask]}
 	end.
 
-
-%%
-%% check request type for socket selection
--spec(request_type/1 :: (any()) -> reader | writer).
-
-request_type({create, _}) ->
-	writer;
-request_type({update, _}) ->
-	writer;
-request_type({delete, _}) ->
-	writer;
-request_type({lookup, _}) ->
-	reader;
-request_type(_) ->
-	% @todo remove this check, it is made for RnD only
-	reader. 
-
-%%
-%% lease i/o socket
-%% @todo handle lease timeout
--spec(lease_socket/2 :: (reader | writer, #cargo{}) -> #cargo{}).
-
-lease_socket(reader, #cargo{reader={pool, Pool}}=Tx) ->
-	{ok, Socket} = pq:lease(Pool),
-	{Socket, Tx#cargo{reader = Socket}};
-lease_socket(writer, #cargo{writer={pool, Pool}}=Tx) ->
-	{ok, Socket} = pq:lease(Pool),
-	{Socket, Tx#cargo{writer = Socket}};
-lease_socket(reader, #cargo{}=Tx) ->
-	{Tx#cargo.reader, Tx};
-lease_socket(writer, #cargo{}=Tx) ->
-	{Tx#cargo.writer, Tx}.
-
-% %%
-% %% release i/o socket
-% -spec(release_socket/1 :: (#cargo{}) -> #cargo{}).
-
-% release_socket(#cargo{socket=undefined}=Tx) ->
-% 	Tx;
-% release_socket(#cargo{socket={reader, Pid}}=Tx) ->
-% 	Tx;
-% 	%pq:release(Tx#cargo.reader, Pid),
-% 	%Tx#cargo{
-% 	%	socket = undefined
-% 	%};
-% release_socket(#cargo{socket={writer, Pid}}=Tx) ->
-% 	Tx.
-% 	%pq:release(Tx#cargo.writer, Pid),
-% 	%Tx#cargo{
-% 	%	socket = undefined
-% 	%}.
 

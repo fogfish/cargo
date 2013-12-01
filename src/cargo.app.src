@@ -1,7 +1,7 @@
 {application, cargo,
    [
       {description, "cargo - persistent term storage"},
-      {vsn,         "0.0.0"},
+      {vsn,         "0.1.0"},
       {modules,     [
          cargo,
          cargo_sup,
@@ -12,7 +12,8 @@
          kernel,
          stdlib,
          lager,
-         pq
+         pq,
+         hcask
       ]},
       {mod, {cargo_app, []}},
       {env, []}

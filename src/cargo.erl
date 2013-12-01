@@ -19,31 +19,54 @@
 -module(cargo).
 
 -include("cargo.hrl").
+-include_lib("hcask/include/hcask.hrl").
 
 -export([start/0, start/1]).
 -export([
 	start_link/1,
 	start_link/2,
-	cask/1,
-	cask/2,
+   % peer interface
+   join/2,
+   leave/1,
+   peers/0,
 	% cask interface
-
-	% peer interface
-	join/2,
-	leave/1,
-	peers/0,
-
-	do/2,
+	apply/2,
+	apply/3,
+	apply_/2,
+	apply_/3,
+   create/1,
    create/2,
+   create/3,
+   create_/1,
+   create_/2,
+   create_/3
+   % functional object interface
+  ,do_create/2
+  ,do_create/3
+  ,do_lookup/2
+  ,do_lookup/3
+   % query
+  ,q/1
+  ,q/2
+  ,q/3
+  ,eq/2
+  ,gt/2
+  ,lt/2
+  ,ge/2
+  ,le/2
+
+
    % create/3,
 
-	t/0
+   ,t/0
 ]).
+
+-type(cask() :: pid() | atom()).
 
 %%
 %% start application
 start()    -> 
-	start(filename:join(["./priv", "dev.config"])).
+   applib:boot(?MODULE, []).
 
 start(Cfg) -> 
 	applib:boot(?MODULE, Cfg).
@@ -79,29 +102,15 @@ start_link(Name, Opts) ->
 		Error     -> Error
 	end.
 
-%%
-%% start storage cask components, returns pid of cask process
--spec(cask/1 :: (list()) -> {ok, pid()} | {error, any()}).
--spec(cask/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
-
-cask(Opts) ->
-	cask(undefined, Opts).
-
-cask(Name, Opts) ->
-   case supervisor:start_child(cargo_cask_root_sup, [Name, Opts]) of
-      {ok, Pid} -> cargo_cask_sup:client_api(Pid);
-      Error     -> Error
-   end.
-
 
 %%%------------------------------------------------------------------
 %%%
-%%% peer interface
+%%% peer interface (hcask wrapper)
 %%%
 %%%------------------------------------------------------------------   
 
 %%
-%% join storage peer
+%% join storage peer (hcask wrapper)
 %%  Options:
 %%    {host,  hostname()} - peer hostname or ip address
 %%    {reader, integer()} - peer reader i/o port (read-only request)
@@ -110,21 +119,21 @@ cask(Name, Opts) ->
 -spec(join/2 :: (atom(), list()) -> {ok, pid()} | {error, any()}).
 
 join(Peer, Opts) ->
-	cargo_sup:join(Peer, Opts).
+  hcask:join(Peer, Opts).
 
 %%
 %% leave storage peer
 -spec(leave/1 :: (atom()) -> ok).
 
 leave(Peer) ->
-	cargo_sup:leave(Peer).
+  hcask:leave(Peer).
 
 %%
 %% list of peers
 -spec(peers/0 :: () -> [atom()]).
 
 peers() ->
-	cargo_sup:peers().
+  hcask:peers().
 
 %%%------------------------------------------------------------------
 %%%
@@ -133,24 +142,100 @@ peers() ->
 %%%------------------------------------------------------------------   
 
 %%
-%% execute raw / dirty operation over i/o socket, current process is blocked 
--spec(do/2 :: (#cask{}, any()) -> {ok, any()} | {error, any()}).
+%% execute functional object in cask context
+-spec(apply/2  :: (cask(), function()) -> {ok, any()} | {error, any()}).
+-spec(apply/3  :: (cask(), function(), timeout()) -> {ok, any()} | {error, any()}).
+-spec(apply_/2 :: (cask(), function()) -> reference()).
+-spec(apply_/3 :: (cask(), function(), true | false) -> {ok, any()} | {error, any()}).
 
-do(#cask{}=Cask, Req) ->
-	cargo_io:do(Cask, Req).
+apply(Cask, Fun) ->
+   cargo:apply(Cask, Fun, ?CONFIG_TIMEOUT_IO).
+apply(Cask, Fun, Timeout) ->
+   request(Cask, {apply, Fun}, Timeout).
+
+apply_(Cask, Fun) ->
+   cargo:apply_(Cask, Fun, true).
+apply_(Cask, Fun, Flags) ->
+   request_(Cask, {apply, Fun}, Flags).
+
 
 %%
-%% create entity
-create(#cask{}=Cask, Entity) ->
-   cargo:do(Cask, {create, Entity}).
+%% create a value
+-spec(create/1  :: (any()) -> {ok, integer()} | {error, any()}).
+-spec(create/2  :: (cask(), any()) -> {ok, integer()} | {error, any()}).
+-spec(create/3  :: (cask(), any(), timeout()) -> {ok, integer()} | {error, any()}).
+-spec(create_/2 :: (cask(), any()) -> reference()).
+-spec(create_/3 :: (cask(), any(), true | false) -> ok | reference()).
+
+create(Entity) ->
+   create(erlang:element(1, Entity), Entity).
+
+create(Entity, Timeout)
+ when is_tuple(Entity) ->
+   create(erlang:element(1, Entity), Entity, Timeout);
+create(Cask, Entity) ->
+   create(Cask, Entity, ?CONFIG_TIMEOUT_IO).
+
+create(Cask, Entity, Timeout) ->
+   request(Cask, {create, Entity}, Timeout).
+
+create_(Entity) ->
+   create_(erlang:element(1, Entity), Entity).
+
+create_(Entity, Flags)
+ when is_tuple(Entity) ->
+   create_(erlang:element(1, Entity), Entity, Flags);   
+create_(Cask, Entity) ->
+   create_(Cask, Entity, true).
+
+create_(Cask, Entity, Flags) ->
+   request_(Cask, {create, Entity}, Flags).
+
+
+%%%------------------------------------------------------------------
+%%%
+%%% query interface
+%%%
+%%%------------------------------------------------------------------   
+
+q(Key)       -> hcask:q(Key). 
+q(Key, NorF) -> hcask:q(Key, NorF).
+q(Key, F, N) -> hcask:q(Key, F, N).
+eq(Key, Val) -> hcask:eq(Key, Val).
+gt(Key, Val) -> hcask:gt(Key, Val).
+lt(Key, Val) -> hcask:lt(Key, Val).
+ge(Key, Val) -> hcask:ge(Key, Val).
+le(Key, Val) -> hcask:le(Key, Val).
+
+%%%------------------------------------------------------------------
+%%%
+%%% tx interface
+%%%
+%%%------------------------------------------------------------------   
 
 %%
-%% 
-% create(Sock, Entity) ->
-%    create(Sock, erlang:element(1, Entity), Entity).
+%% create a value
+-spec(do_create/2  :: (any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+-spec(do_create/3  :: (cask(), any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
 
-% create(Sock, Cask, Entity) ->
-%    do(Sock, Cask, Entity).
+do_create(Entity, Context) ->
+   cargo_io:do({create, Entity}, Context).
+
+do_create(Cask, Entity, Context) ->
+   cargo_io:do(Cask, {create, Entity}, Context).
+
+
+%%
+%% lookup value(s)
+-spec(do_lookup/2  :: (any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+-spec(do_lookup/3  :: (cask(), any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+
+do_lookup(Query, Context) ->
+   cargo_io:do(Query, Context).
+
+do_lookup(Cask, Query, Context) ->
+   cargo_io:do(Cask, Query, Context).
+
 
 
 
@@ -160,31 +245,67 @@ create(#cask{}=Cask, Entity) ->
 %%%
 %%%------------------------------------------------------------------   
 
+%%
+%% synchronous request
+request(Cask, Req, Timeout) ->
+   case pq:lease(Cask, Timeout) of
+      {ok, Pid} -> plib:call(Pid, Req, Timeout);
+      Error     -> Error
+   end.
+
+%%
+%% asynchronous request
+request_(Cask, Req, true) ->
+   case pq:lease(Cask, ?CONFIG_TIMEOUT_LEASE) of
+      {ok, Pid} -> plib:cast(Pid, Req);
+      Error     -> Error
+   end;
+request_(Cask, Req, false) ->
+   case pq:lease(Cask, ?CONFIG_TIMEOUT_LEASE) of
+      {ok, Pid} -> plib:send(Pid, Req), ok;
+      Error     -> Error
+   end.
+
+
+
+%%
+%% cask 
+-define(KV, [
+   {peer,     mysqld}
+  ,{struct,   kv}
+  ,{property, [key,val]}
+  ,{db,       hcask}
+]).
+
+
 
 t() ->
-   {ok,   _} = cargo:join(test, [{host, mysqld}, {reader, 80}, {writer, 80}, {pool, 10}]),
-   {ok, Pid} = cargo:cask([
-      {peer,     test}
-     ,{struct,   test}
-     ,{property, [a,b,c]}
-     ,{domain,   test}
-   ]),
-   {ok,   _} = cargo:cask(aaa, [
-      {peer,     test}
-     ,{struct,   test}
-     ,{property, [a,b,c,d,e,f]}
-     ,{domain,   test}
-   ]),
+   _ = cargo:join(mysqld, [{host, mysqld}, {reader, 9998}, {writer, 9999}, {pool, 10}]),
+   {ok, Pid} = cargo:start_link(?KV),
+   % {ok,   _} = cargo:cask(aaa, [
+   %    {peer,     test}
+   %   ,{struct,   test}
+   %   ,{property, [a,b,c,d,e,f]}
+   %   ,{domain,   test}
+   % ]),
 
    lager:set_loglevel(lager_console_backend, debug),
-   {ok,  Tx} = pq:lease(Pid),
-	plib:call(Tx, fun(X) -> tx(Pid, X) end).
+   cargo:apply(Pid, fun(X) -> tx(Pid, X) end).
 
 
-tx(Pid, Cask0) ->
-	{ok, Result, Cask1} = cargo_io:do(Pid, {a,b,c}, Cask0), 
-   %cargo:create(IO, {a,b,c}),
-	io:format("--> ~p~n", [Result]),
-	{ok, _, Cask2} = cargo_io:do(aaa, req1, Cask1).
+tx(Pid, IO) ->
+   Q = cargo:q(cargo:eq(key, 1)),
+   case cargo:do_lookup(Q, IO) of
+      {ok, [], IO1} ->
+         cargo:do_create({kv, 1, "abc"}, IO1);
+      Result ->
+         Result
+   end.
+
+   %{ok, ok, IO}.
+	% {ok, Result, Cask1} = cargo:do_create(Pid, {a,b,c}, Cask0), 
+ %   %cargo:create(IO, {a,b,c}),
+	% io:format("--> ~p~n", [Result]),
+	% {ok, _, Cask2} = cargo:do_create(aaa, req1, Cask1).
 
 

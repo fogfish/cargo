@@ -21,11 +21,7 @@
 
 -export([
    start_link/0, 
-   init/1,
-   % peer api
-   join/2,
-   leave/1,
-   peers/0
+   init/1
 ]).
 
 %%
@@ -43,26 +39,8 @@ init([]) ->
       {
          {one_for_one, 2, 1800},
          [
-            %% identity server
-            ?CHILD(worker,     cargo_identity)
-           ,?CHILD(supervisor, cargo_cask_root_sup)
+            ?CHILD(supervisor, cargo_cask_root_sup)
          ]
       }
    }.
-
-%%
-%% join/register new peer to cargo pool
-join(Peer, Opts) ->
-	supervisor:start_child(?MODULE, ?CHILD(supervisor, Peer, cargo_peer_sup, [Peer, Opts])).
-
-%%
-%% leave/unregister peer from cargo pool
-leave(Peer) ->
-	supervisor:terminate_child(?MODULE, Peer),
-	supervisor:delete_child(?MODULE, Peer).
-
-%%
-%% list known peers
-peers() ->
-	[erlang:element(1, X) || X <- supervisor:which_children(?MODULE)].
 

@@ -26,9 +26,10 @@
 -behaviour(kfsm).
 
 -include("cargo.hrl").
+-include_lib("hcask/include/hcask.hrl").
 
 -export([
-	start_link/2,
+	start_link/3,
 	init/1,
 	free/2,
 	ioctl/2,
@@ -38,8 +39,7 @@
 %% internal tx state
 -record(srv, {
 	queue   = undefined :: pid(),
-	context = undefined :: #cargo{}
-
+	context = undefined :: #hio{}
 }).
 
 %%%------------------------------------------------------------------
@@ -48,16 +48,14 @@
 %%%
 %%%------------------------------------------------------------------   
 
-start_link(Queue, Cask) ->
-	kfsm:start_link(?MODULE, [Queue, Cask], []).
+start_link(Queue, Name, Cask) ->
+	kfsm:start_link(?MODULE, [Queue, Name, Cask], []).
 
-init([Queue, Cask]) ->
-   % @todo configurable protocol
-	Context = cargo_io:init(?CONFIG_IO_FAMILY, Cask#cask.peer, set_cask_id(Queue, Cask)),
+init([Queue, Name, Cask]) ->
 	{ok, handle, 
 		#srv{
 			queue   = Queue,
-			context = Context
+			context = cargo_io:init(?CONFIG_IO_FAMILY, set_cask_name(Name, Queue, Cask))
 		}
 	}.
 
@@ -74,7 +72,29 @@ ioctl(_, _) ->
 %%%
 %%%------------------------------------------------------------------   
 
-handle(Fun, Tx, S) ->
+handle({create, Entity}, Tx, S) ->
+	tx(fun(IO) -> cargo:do_create(Entity, IO) end, Tx, S);
+
+handle({apply, Fun}, Tx, S) ->
+	tx(Fun, Tx, S).
+
+
+%%%------------------------------------------------------------------
+%%%
+%%% private
+%%%
+%%%------------------------------------------------------------------   
+
+%%
+%% cask id is pid of tx queue
+set_cask_name(undefined, Queue, #hcask{}=Cask) ->
+	Cask#hcask{name=Queue};
+set_cask_name(Name, _Queue, #hcask{}=Cask) ->
+	Cask#hcask{name=Name}.
+
+
+%%
+tx(Fun, Tx, S) ->
 	try
 		{Status, Result, Context} = Fun(S#srv.context),
 		plib:ack(Tx, {Status, Result}),
@@ -89,16 +109,4 @@ handle(Fun, Tx, S) ->
 		{next_state, idle, S}
 	end.
 
-
-%%%------------------------------------------------------------------
-%%%
-%%% private
-%%%
-%%%------------------------------------------------------------------   
-
-%%
-set_cask_id(Pid,  #cask{id=undefined}=S) ->
-	S#cask{id=Pid};
-set_cask_id(_Pid, Cask) ->
-	Cask.
 
