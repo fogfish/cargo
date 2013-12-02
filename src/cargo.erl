@@ -28,23 +28,41 @@
    % peer interface
    join/2,
    leave/1,
-   peers/0,
+   peers/0
 	% cask interface
-	apply/2,
-	apply/3,
-	apply_/2,
-	apply_/3,
-   create/1,
-   create/2,
-   create/3,
-   create_/1,
-   create_/2,
-   create_/3
+  ,apply/2
+  ,apply/3
+  ,apply_/2
+  ,apply_/3
+  ,create/1
+  ,create/2
+  ,create/3
+  ,create_/1
+  ,create_/2
+  ,create_/3
+  ,update/1
+  ,update/2
+  ,update/3
+  ,update_/1
+  ,update_/2
+  ,update_/3
+  ,delete/2
+  ,delete/3
+  ,delete_/2
+  ,delete_/3
+  ,lookup/2
+  ,lookup/3
+  ,lookup_/2
+  ,lookup_/3
    % functional object interface
   ,do_create/2
   ,do_create/3
+  ,do_update/2
+  ,do_update/3
   ,do_lookup/2
   ,do_lookup/3
+  ,do_delete/2
+  ,do_delete/3
    % query
   ,q/1
   ,q/2
@@ -54,9 +72,6 @@
   ,lt/2
   ,ge/2
   ,le/2
-
-
-   % create/3,
 
    ,t/0
 ]).
@@ -164,17 +179,18 @@ apply_(Cask, Fun, Flags) ->
 -spec(create/1  :: (any()) -> {ok, integer()} | {error, any()}).
 -spec(create/2  :: (cask(), any()) -> {ok, integer()} | {error, any()}).
 -spec(create/3  :: (cask(), any(), timeout()) -> {ok, integer()} | {error, any()}).
+-spec(create_/1 :: (any()) -> reference()).
 -spec(create_/2 :: (cask(), any()) -> reference()).
 -spec(create_/3 :: (cask(), any(), true | false) -> ok | reference()).
 
 create(Entity) ->
    create(erlang:element(1, Entity), Entity).
 
-create(Entity, Timeout)
- when is_tuple(Entity) ->
-   create(erlang:element(1, Entity), Entity, Timeout);
-create(Cask, Entity) ->
-   create(Cask, Entity, ?CONFIG_TIMEOUT_IO).
+create(Cask, Entity)
+ when is_atom(Cask) orelse is_pid(Cask) ->
+   create(Cask, Entity, ?CONFIG_TIMEOUT_IO);
+create(Entity, Timeout) ->
+   create(erlang:element(1, Entity), Entity, Timeout).
 
 create(Cask, Entity, Timeout) ->
    request(Cask, {create, Entity}, Timeout).
@@ -182,15 +198,85 @@ create(Cask, Entity, Timeout) ->
 create_(Entity) ->
    create_(erlang:element(1, Entity), Entity).
 
-create_(Entity, Flags)
- when is_tuple(Entity) ->
-   create_(erlang:element(1, Entity), Entity, Flags);   
-create_(Cask, Entity) ->
-   create_(Cask, Entity, true).
+create_(Cask, Entity) 
+ when is_atom(Cask) orelse is_pid(Cask) ->
+   create_(Cask, Entity, true);
+create_(Entity, Flags) ->
+   create_(erlang:element(1, Entity), Entity, Flags).
 
 create_(Cask, Entity, Flags) ->
    request_(Cask, {create, Entity}, Flags).
 
+%%
+%% update value
+-spec(update/1  :: (any()) -> {ok, integer()} | {error, any()}).
+-spec(update/2  :: (cask(), any()) -> {ok, integer()} | {error, any()}).
+-spec(update/3  :: (cask(), any(), timeout()) -> {ok, integer()} | {error, any()}).
+-spec(update_/1 :: (cask()) -> reference()).
+-spec(update_/2 :: (cask(), any()) -> reference()).
+-spec(update_/3 :: (cask(), any(), true | false) -> ok | reference()).
+
+update(Entity) ->
+   update(erlang:element(1, Entity), Entity).
+
+update(Cask, Entity)
+ when is_atom(Cask) orelse is_pid(Cask) ->
+   update(Cask, Entity, ?CONFIG_TIMEOUT_IO);
+update(Entity, Timeout) ->
+   update(erlang:element(1, Entity), Entity, Timeout).
+
+update(Cask, Entity, Timeout) ->
+   request(Cask, {update, Entity}, Timeout).
+
+update_(Entity) ->
+   update_(erlang:element(1, Entity), Entity).
+
+update_(Cask, Entity)
+ when is_atom(Cask) orelse is_pid(Entity) ->
+   update_(Cask, Entity, true);
+update_(Entity, Flags) ->
+   update_(erlang:element(1, Entity), Entity, Flags).
+
+update_(Cask, Entity, Flags) ->
+   request_(Cask, {update, Entity}, Flags).
+
+%%
+%% update value
+-spec(delete/2  :: (cask(), any()) -> {ok, integer()} | {error, any()}).
+-spec(delete/3  :: (cask(), any(), timeout()) -> {ok, integer()} | {error, any()}).
+-spec(delete_/2 :: (cask(), any()) -> reference()).
+-spec(delete_/3 :: (cask(), any(), true | false) -> ok | reference()).
+
+delete(Cask, Key) ->
+   delete(Cask, Key, ?CONFIG_TIMEOUT_IO).
+
+delete(Cask, Key, Timeout) ->
+   request(Cask, {delete, Key}, Timeout).
+
+delete_(Cask, Key) ->
+   delete_(Cask, Key, true).
+
+delete_(Cask, Key, Flags) ->
+   request_(Cask, {delete, Key}, Flags).
+
+%%
+%% lookup value(s)
+-spec(lookup/2  :: (cask(), any()) -> {ok, integer()} | {error, any()}).
+-spec(lookup/3  :: (cask(), any(), timeout()) -> {ok, integer()} | {error, any()}).
+-spec(lookup_/2 :: (cask(), any()) -> reference()).
+-spec(lookup_/3 :: (cask(), any(), true | false) -> ok | reference()).
+
+lookup(Cask, Query) ->
+   lookup(Cask, Query, ?CONFIG_TIMEOUT_IO).
+
+lookup(Cask, Query, Timeout) ->
+   request(Cask, Query, Timeout).
+
+lookup_(Cask, Query) ->
+   lookup_(Cask, Query, true).
+
+lookup_(Cask, Query, Flags) ->
+   request_(Cask, Query, Flags).
 
 %%%------------------------------------------------------------------
 %%%
@@ -224,6 +310,27 @@ do_create(Entity, Context) ->
 do_create(Cask, Entity, Context) ->
    cargo_io:do(Cask, {create, Entity}, Context).
 
+%%
+%% update value
+-spec(do_update/2  :: (any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+-spec(do_update/3  :: (cask(), any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+
+do_update(Entity, Context) ->
+   cargo_io:do({update, Entity}, Context).
+
+do_update(Cask, Entity, Context) ->
+   cargo_io:do(Cask, {update, Entity}, Context).
+
+%%
+%% update value
+-spec(do_delete/2  :: (any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+-spec(do_delete/3  :: (cask(), any(), #hio{}) -> {ok, any(), #hio{}} | {error, any(), #hio{}}).
+
+do_delete(Key, Context) ->
+   cargo_io:do({delete, Key}, Context).
+
+do_delete(Cask, Key, Context) ->
+   cargo_io:do(Cask, {delete, Key}, Context).
 
 %%
 %% lookup value(s)
@@ -235,9 +342,6 @@ do_lookup(Query, Context) ->
 
 do_lookup(Cask, Query, Context) ->
    cargo_io:do(Cask, Query, Context).
-
-
-
 
 %%%------------------------------------------------------------------
 %%%
@@ -298,8 +402,8 @@ tx(Pid, IO) ->
    case cargo:do_lookup(Q, IO) of
       {ok, [], IO1} ->
          cargo:do_create({kv, 1, "abc"}, IO1);
-      Result ->
-         Result
+      {ok,  _, IO1} ->
+         cargo:do_update({kv, 1, "abc++"}, IO1)
    end.
 
    %{ok, ok, IO}.

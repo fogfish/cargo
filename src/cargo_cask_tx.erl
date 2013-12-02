@@ -74,6 +74,12 @@ ioctl(_, _) ->
 
 handle({create, Entity}, Tx, S) ->
 	tx(fun(IO) -> cargo:do_create(Entity, IO) end, Tx, S);
+handle({update, Entity}, Tx, S) ->
+	tx(fun(IO) -> cargo:do_update(Entity, IO) end, Tx, S);
+handle({delete,    Key}, Tx, S) ->
+	tx(fun(IO) -> cargo:do_delete(Key, IO) end, Tx, S);
+handle({lookup, _Key, _F, _N}=Query, Tx, S) ->
+	tx(fun(IO) -> cargo:do_lookup(Query, IO) end, Tx, S);
 
 handle({apply, Fun}, Tx, S) ->
 	tx(Fun, Tx, S).
