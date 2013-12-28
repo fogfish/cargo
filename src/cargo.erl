@@ -239,7 +239,7 @@ update_(Cask, Entity, Flags) ->
    request_(Cask, {update, Entity}, Flags).
 
 %%
-%% update value
+%% delete value
 -spec(delete/2  :: (cask(), any()) -> {ok, integer()} | {error, any()}).
 -spec(delete/3  :: (cask(), any(), timeout()) -> {ok, integer()} | {error, any()}).
 -spec(delete_/2 :: (cask(), any()) -> reference()).
