@@ -72,8 +72,6 @@
   ,lt/2
   ,ge/2
   ,le/2
-
-   ,t/0
 ]).
 
 -type(cask() :: pid() | atom()).
@@ -369,47 +367,3 @@ request_(Cask, Req, false) ->
       {ok, Pid} -> plib:send(Pid, Req), ok;
       Error     -> Error
    end.
-
-
-
-%%
-%% cask 
--define(KV, [
-   {peer,     mysqld}
-  ,{struct,   kv}
-  ,{property, [key,val]}
-  ,{db,       hcask}
-]).
-
-
-
-t() ->
-   _ = cargo:join(mysqld, [{host, mysqld}, {reader, 9998}, {writer, 9999}, {pool, 10}]),
-   {ok, Pid} = cargo:start_link(?KV),
-   % {ok,   _} = cargo:cask(aaa, [
-   %    {peer,     test}
-   %   ,{struct,   test}
-   %   ,{property, [a,b,c,d,e,f]}
-   %   ,{domain,   test}
-   % ]),
-
-   lager:set_loglevel(lager_console_backend, debug),
-   cargo:apply(Pid, fun(X) -> tx(Pid, X) end).
-
-
-tx(Pid, IO) ->
-   Q = cargo:q(cargo:eq(key, 1)),
-   case cargo:do_lookup(Q, IO) of
-      {ok, [], IO1} ->
-         cargo:do_create({kv, 1, "abc"}, IO1);
-      {ok,  _, IO1} ->
-         cargo:do_update({kv, 1, "abc++"}, IO1)
-   end.
-
-   %{ok, ok, IO}.
-	% {ok, Result, Cask1} = cargo:do_create(Pid, {a,b,c}, Cask0), 
- %   %cargo:create(IO, {a,b,c}),
-	% io:format("--> ~p~n", [Result]),
-	% {ok, _, Cask2} = cargo:do_create(aaa, req1, Cask1).
-
-
